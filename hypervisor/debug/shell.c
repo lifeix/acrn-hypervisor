@@ -845,13 +845,14 @@ static int32_t shell_to_sos_console(__unused int32_t argc, __unused char **argv)
 	struct acrn_vuart *vu;
 #ifdef CONFIG_PARTITION_MODE
 	struct acrn_vm_config *vm_config;
+#endif
 
 	if (argc == 2U) {
 		vm_id = sanitize_vmid(strtol_deci(argv[1]));
 	}
 
 	vuart_vmid = vm_id;
-#endif
+
 	/* Get the virtual device node */
 	vm = get_vm_from_vmid(vm_id);
 	if (!is_valid_vm(vm)) {

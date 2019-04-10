@@ -68,9 +68,7 @@ struct acrn_vuart {
 	spinlock_t lock;	/* protects all softc elements */
 };
 
-#ifdef CONFIG_PARTITION_MODE
 extern uint16_t vuart_vmid;
-#endif /* CONFIG_PARTITION_MODE */
 
 struct acrn_vuart *vm_vuart(struct acrn_vm *vm);
 void vuart_init(struct acrn_vm *vm);

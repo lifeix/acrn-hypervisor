@@ -34,6 +34,7 @@
 #include <efi.h>
 #include <efilib.h>
 #include "efilinux.h"
+#include <efiprot.h>
 #include "stdlib.h"
 #include "boot.h"
 #include "acrn_common.h"
@@ -45,6 +46,11 @@ EFI_BOOT_SERVICES *boot;
 char *cmdline = NULL;
 extern const uint64_t guest_entry;
 static UINT64 hv_hpa;
+static UINTN privileged_guest_size = 0;
+
+#define PRE_LAUNCH_GUEST_START         0x120000000
+#define PRE_LAUNCH_GUEST_MEM_SIZE      0x20000000
+static UINT64 pre_launch_guest_hpa;
 
 static void
 enable_disable_all_ap(BOOLEAN enable)
@@ -110,7 +116,7 @@ static inline void hv_jump(EFI_PHYSICAL_ADDRESS hv_start,
 }
 
 EFI_STATUS construct_mbi(EFI_PHYSICAL_ADDRESS hv_hpa, struct multiboot_info *mbi,
-		struct multiboot_mmap *mmap)
+		struct multiboot_mmap *mmap, struct multiboot_module *mods)
 {
 	UINTN map_size, map_key;
 	UINT32 desc_version;
@@ -228,10 +234,19 @@ again:
 	mmap[j].mm_type = E820_RAM;
 	j++;
 
+	mods->mmo_start = (UINTN)(mods + MBOOT_MOD_SIZE);
+	mods->mmo_end = (UINTN)(mods + MBOOT_MOD_SIZE) + privileged_guest_size;
+	mods->mmo_string = NULL;
+	mods->mmo_reserved = 0;
+	Print(L"mmo start 0x%x end 0x%x\n", mods->mmo_start, mods->mmo_end);
+
+	mbi->mi_mods_count = MBOOT_MOD_NUMS;
+	mbi->mi_mods_addr = (UINTN)mods;
+
 	mbi->mi_cmdline = (UINTN)cmdline;
 	mbi->mi_mmap_addr = (UINTN)mmap;
 	mbi->mi_mmap_length = j*sizeof(struct multiboot_mmap);
-	mbi->mi_flags |= MULTIBOOT_INFO_HAS_MMAP | MULTIBOOT_INFO_HAS_CMDLINE;
+	mbi->mi_flags |= MULTIBOOT_INFO_HAS_MMAP | MULTIBOOT_INFO_HAS_CMDLINE | MULTIBOOT_INFO_HAS_MODS;
 out:
 	return err;
 }
@@ -243,6 +258,7 @@ switch_to_guest_mode(EFI_HANDLE image, EFI_PHYSICAL_ADDRESS hv_hpa)
 	EFI_STATUS err;
 	struct multiboot_mmap *mmap;
 	struct multiboot_info *mbi;
+	struct multiboot_module *mods;
 	struct uefi_context *efi_ctx;
 	struct acpi_table_rsdp *rsdp = NULL;
 	int32_t i;
@@ -257,6 +273,7 @@ switch_to_guest_mode(EFI_HANDLE image, EFI_PHYSICAL_ADDRESS hv_hpa)
 
 	mmap = MBOOT_MMAP_PTR(addr);
 	mbi = MBOOT_INFO_PTR(addr);
+	mods = MBOOT_MOD_PTR(hv_hpa);
 	efi_ctx = BOOT_CTX_PTR(addr);
 
 	/* reserve secondary memory region for CPU trampoline code */
@@ -295,7 +312,7 @@ switch_to_guest_mode(EFI_HANDLE image, EFI_PHYSICAL_ADDRESS hv_hpa)
 	efi_ctx->rsdp = rsdp;
 
 	/* construct multiboot info and deliver it to hypervisor */
-	err = construct_mbi(hv_hpa, mbi, mmap);
+	err = construct_mbi(hv_hpa, mbi, mmap, mods);
 	if (err != EFI_SUCCESS)
 		goto out;
 
@@ -336,6 +353,57 @@ static inline EFI_STATUS isspace(CHAR8 ch)
     return ((uint8_t)ch <= ' ');
 }
 
+static VOID * LoadPrivilegedGuest(EFI_LOADED_IMAGE *image, CHAR16 *file_name, UINTN *size)
+{
+	EFI_STATUS Status;
+	EFI_HANDLE device_handle;
+        SIMPLE_READ_FILE read_handle;
+	UINTN pos = 0, read_size = 0, buf_size = 4096, file_size = 0;
+	VOID *buf = NULL;
+
+	EFI_DEVICE_PATH* path = FileDevicePath(image->DeviceHandle, file_name);
+
+	if (path != NULL)
+		Print(L"Found device path\n");
+
+        Status = OpenSimpleReadFile(FALSE, NULL, 0, &path, &device_handle, &read_handle);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to open file\n");
+		return NULL;
+	}
+
+	Print(L"Loading Privileged Guest ");
+	do {
+		read_size = buf_size;
+		buf = ReallocatePool(buf, file_size, file_size + buf_size);
+		if (buf == NULL) {
+			Print(L"Allocate pool failed\n");
+			return NULL;
+		}
+
+		Status = ReadSimpleReadFile(read_handle, pos, &read_size, buf + pos);
+		if (EFI_ERROR(Status)) {
+			Print(L"Failed to read file\n");
+			FreePool(buf);
+			return NULL;
+		}
+
+		file_size += read_size;
+		pos += read_size;
+		Print(L"#");
+	} while (read_size == buf_size);
+
+	*size = file_size;
+	Print(L"\nFile %s size %u\n", file_name, file_size);
+	CloseSimpleReadFile(read_handle);
+
+	return buf;
+}
+
+static void UnLoadPrivilegedGuest(CHAR16 *buf)
+{
+	FreePool(buf);
+}
 #define DEFAULT_UEFI_OS_LOADER_NAME "\\EFI\\org.clearlinux\\bootloaderx64.efi"
 /**
  * efi_main - The entry point for the OS loader image.
@@ -356,6 +424,9 @@ efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *_table)
 	INTN i, index;
 	CHAR16 *bootloader_name = NULL;
 	CHAR16 bootloader_param[] = L"bootloader=";
+	CHAR16 *privileged_guest = NULL;
+	CHAR16 privileged_guest_param[] = L"privileged_guest=";
+	VOID *privileged_guest_entry = NULL;
 	EFI_HANDLE bootloader_image;
 	CHAR16 *options = NULL;
 	UINT32 options_size = 0;
@@ -405,6 +476,28 @@ efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *_table)
 		bootloader_name = ch8_2_ch16(DEFAULT_UEFI_OS_LOADER_NAME);
 	}
 
+	/* Check if we are given privileged guest Image */
+	privileged_guest = strstr_16(cmdline16, privileged_guest_param);
+	if (privileged_guest) {
+		privileged_guest = privileged_guest + StrLen(privileged_guest_param);
+		n = privileged_guest;
+		i = 0;
+
+		while (*n && !isspace((CHAR8)*n) && (*n < 0xff)) {
+			n++; i++;
+		}
+		*n++ = '\0';
+		Print(L"Privileged Guest Image : %s\n", privileged_guest);
+	} else {
+		Print(L"No Privileged Guest Image Configured\n");
+	}
+
+	/* Load Privileged Guest Image to Memory */
+	privileged_guest_entry = LoadPrivilegedGuest(info, privileged_guest, &privileged_guest_size);
+	if (privileged_guest_entry == NULL) {
+		Print(L"Fail to Load Privileged Guest %s\n", privileged_guest);
+	}
+
 	section = ".hv";
 	err = get_pe_section(info->ImageBase, section, &sec_addr, &sec_size);
 	if (EFI_ERROR(err)) {
@@ -420,20 +513,36 @@ efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *_table)
 	 * instead.
 	 */
 #ifdef CONFIG_RELOC
-	err = emalloc_reserved_aligned(&hv_hpa, CONFIG_HV_RAM_SIZE, 1 << 21, MEM_ADDR_4GB);
+	err = emalloc_reserved_aligned(&hv_hpa, CONFIG_HV_RAM_SIZE + privileged_guest_size, 1 << 21, MEM_ADDR_4GB);
 #else
-	err = emalloc_fixed_addr(&hv_hpa, CONFIG_HV_RAM_SIZE, CONFIG_HV_RAM_START);
+	err = emalloc_fixed_addr(&hv_hpa, CONFIG_HV_RAM_SIZE + privileged_guest_size, CONFIG_HV_RAM_START);
 #endif
 	if (err != EFI_SUCCESS)
 		goto failed;
 
+       err = emalloc_fixed_addr(&pre_launch_guest_hpa, PRE_LAUNCH_GUEST_MEM_SIZE, PRE_LAUNCH_GUEST_START);
+       if (err != EFI_SUCCESS) {
+               Print(L"Error to reserved [mem 0x%016llx - 0x%016llx]",
+                               PRE_LAUNCH_GUEST_START, PRE_LAUNCH_GUEST_START + PRE_LAUNCH_GUEST_MEM_SIZE);
+       }
+
 	memcpy((char *)hv_hpa, info->ImageBase + sec_addr, sec_size);
+
+	/* load privileged guest image to given address */
+	memcpy((char *)(MBOOT_MOD_PTR(hv_hpa) + MBOOT_MOD_SIZE), (char *)privileged_guest_entry, privileged_guest_size);
+	Print(L"Load Privileged Guest Image to 0x%x, Bytes %u\n",
+				(UINTN)(MBOOT_MOD_PTR(hv_hpa) + MBOOT_MOD_SIZE), privileged_guest_size);
+
+	//return EFI_SUCCESS;
 
 	/* load hypervisor and begin to run on it */
 	err = switch_to_guest_mode(image, hv_hpa);
-	if (err != EFI_SUCCESS)
+	if (err != EFI_SUCCESS) {
+		Print(L"switch_to_guest_mode err: %u\n", err);
 		goto failed;
-
+	} else {
+		Print(L"switch_to_guest_mode succeed\n");
+	}
 	/*
 	 * enable all AP here will reset all APs,
 	 * so acrn can handle their ctx from now on.
@@ -467,6 +576,7 @@ efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *_table)
 free_args:
 	FreePool(bootloader_name);
 failed:
+	UnLoadPrivilegedGuest(privileged_guest_entry);
 	/*
 	 * We need to be careful not to trash 'err' here. If we fail
 	 * to allocate enough memory to hold the error string fallback

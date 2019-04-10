@@ -306,9 +306,25 @@ static struct acrn_vcpu_regs realmode_init_regs = {
 	.cr4 = 0UL,
 };
 
+static struct acrn_vcpu_regs protectmode_init_regs = {
+	.cs_ar = PROTECTED_MODE_CODE_SEG_AR,
+	.cs_sel = 0x10U,
+	.ss_sel = 0x18U,
+	.ds_sel = 0x18U,
+	.es_sel = 0x18U,
+	.cs_limit = PROTECTED_MODE_SEG_LIMIT,
+	.cr0 = CR0_ET | CR0_NE | CR0_PE,
+	.cr3 = 0UL,
+	.cr4 = 0UL,
+};
+
 void reset_vcpu_regs(struct acrn_vcpu *vcpu)
 {
-	set_vcpu_regs(vcpu, &realmode_init_regs);
+	if (!is_security_vm(vcpu->vm)) {
+		set_vcpu_regs(vcpu, &realmode_init_regs);
+	} else {
+		set_vcpu_regs(vcpu, &protectmode_init_regs);
+	}
 }
 
 void set_ap_entry(struct acrn_vcpu *vcpu, uint64_t entry)

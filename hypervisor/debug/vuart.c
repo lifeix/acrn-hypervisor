@@ -48,9 +48,7 @@ static char vuart_tx_buf[TX_BUF_SIZE];
 #define vuart_lock(vu)		spinlock_obtain(&((vu)->lock))
 #define vuart_unlock(vu)	spinlock_release(&((vu)->lock))
 
-#ifdef CONFIG_PARTITION_MODE
 uint16_t vuart_vmid = 0xFFFFU;
-#endif
 
 static inline void fifo_reset(struct fifo *fifo)
 {
@@ -382,13 +380,11 @@ struct acrn_vuart *vuart_console_active(void)
 {
 	struct acrn_vm *vm = NULL;
 
-#ifdef CONFIG_PARTITION_MODE
-	if (vuart_vmid < CONFIG_MAX_VM_NUM) {
+	if (vuart_vmid == 0xFFFFU) {
+		vm = get_sos_vm();
+	} else {
 		vm = get_vm_from_vmid(vuart_vmid);
 	}
-#else
-	vm = get_sos_vm();
-#endif
 
 	if (is_valid_vm(vm)) {
 		struct acrn_vuart *vu = vm_vuart(vm);

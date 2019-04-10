@@ -72,12 +72,24 @@ bool is_sos_vm(const struct acrn_vm *vm)
  * @pre vm != NULL
  * @pre vm->vmid < CONFIG_MAX_VM_NUM
  */
+bool is_security_vm(const struct acrn_vm *vm)
+{
+	struct acrn_vm_config *vm_config;
+
+	vm_config = get_vm_config(vm->vm_id);
+	return (vm_config->type == (PRE_LAUNCHED_VM | SECURITY_VM));
+}
+
+/**
+ * @pre vm != NULL
+ * @pre vm->vmid < CONFIG_MAX_VM_NUM
+ */
 bool is_prelaunched_vm(const struct acrn_vm *vm)
 {
 	struct acrn_vm_config *vm_config;
 
 	vm_config = get_vm_config(vm->vm_id);
-	return (vm_config->type == PRE_LAUNCHED_VM);
+	return ((vm_config->type & PRE_LAUNCHED_VM) == PRE_LAUNCHED_VM);
 }
 
 /**
@@ -358,7 +370,7 @@ int32_t create_vm(uint16_t vm_id, struct acrn_vm_config *vm_config, struct acrn_
 	sanitize_pte((uint64_t *)vm->arch_vm.nworld_eptp);
 
 	/* Register default handlers for PIO & MMIO if it is SOS VM or Pre-launched VM */
-	if ((vm_config->type == SOS_VM) || (vm_config->type == PRE_LAUNCHED_VM)) {
+	if ((vm_config->type == SOS_VM) || ((vm_config->type & PRE_LAUNCHED_VM) == PRE_LAUNCHED_VM)) {
 		register_pio_default_emulation_handler(vm);
 		register_mmio_default_emulation_handler(vm);
 	}
@@ -395,7 +407,8 @@ int32_t create_vm(uint16_t vm_id, struct acrn_vm_config *vm_config, struct acrn_
 		(void)memcpy_s(&vm->GUID[0], sizeof(vm->GUID),
 			&vm_config->GUID[0], sizeof(vm_config->GUID));
 
-		 if (vm_config->type == PRE_LAUNCHED_VM) {
+		 if (is_prelaunched_vm(vm)) {
+			pr_fatal("%s, %d___", __func__, __LINE__);
 			create_prelaunched_vm_e820(vm);
 			prepare_prelaunched_vm_memmap(vm, vm_config);
 			(void)firmware_init_vm_boot_info(vm);
@@ -424,17 +437,18 @@ int32_t create_vm(uint16_t vm_id, struct acrn_vm_config *vm_config, struct acrn_
 
 			/* Create virtual uart; just when uart enabled, vuart can work */
 			if (is_dbg_uart_enabled()) {
+				pr_fatal("%s, vmid: %u___\n", __func__, vm->vm_id);
 				vuart_init(vm);
 			}
 		}
 		vpic_init(vm);
 
-#ifdef CONFIG_PARTITION_MODE
 		/* Create virtual uart; just when uart enabled, vuart can work */
 		if (vm_config->vm_vuart && is_dbg_uart_enabled()) {
+			pr_fatal("%s, vmid: %u___\n", __func__, vm->vm_id);
 			vuart_init(vm);
 		}
-#endif
+
 		vrtc_init(vm);
 
 		vpci_init(vm);
@@ -649,6 +663,8 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 
 	err = create_vm(vm_id, vm_config, &vm);
 
+	pr_acrnlog("%s, %d, vm_id: %d, err: %d___", __func__, __LINE__, vm_id, err);
+
 	if (err == 0) {
 #ifdef CONFIG_PARTITION_MODE
 		(void)mptable_build(vm);
@@ -665,6 +681,7 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 
 	}
 
+	pr_acrnlog("%s, %d, vm_id: %d, err: %d___", __func__, __LINE__, vm_id, err);
 	if (err == 0) {
 		if (vm_sw_loader == NULL) {
 			vm_sw_loader = general_sw_loader;
@@ -689,7 +706,7 @@ void launch_vms(uint16_t pcpu_id)
 
 	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
 		vm_config = get_vm_config(vm_id);
-		if ((vm_config->type == SOS_VM) || (vm_config->type == PRE_LAUNCHED_VM)) {
+		if ((vm_config->type == SOS_VM) || ((vm_config->type & PRE_LAUNCHED_VM) == PRE_LAUNCHED_VM)) {
 			if (vm_config->type == SOS_VM) {
 				sos_vm_ptr = &vm_array[vm_id];
 			}
