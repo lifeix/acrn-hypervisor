@@ -223,6 +223,7 @@ HW_C_SRCS += boot/guest/deprivilege_boot.c
 HW_C_SRCS += boot/guest/direct_boot.c
 
 # virtual platform base component
+VP_BASE_C_SRCS += arch/x86/guest/oem_acpi_bin.S
 VP_BASE_C_SRCS += arch/x86/guest/vcpuid.c
 VP_BASE_C_SRCS += arch/x86/guest/vcpu.c
 VP_BASE_C_SRCS += arch/x86/guest/vm.c
