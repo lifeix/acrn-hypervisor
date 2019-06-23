@@ -33,8 +33,8 @@
 #include <spinlock.h>
 #include <vm_config.h>
 
-#define RX_BUF_SIZE		256U
-#define TX_BUF_SIZE		8192U
+#define RX_BUF_SIZE		4096U
+#define TX_BUF_SIZE		32768U
 #define INVAILD_VUART_IDX	0xFFU
 
 #define COM1_BASE		0x3F8U

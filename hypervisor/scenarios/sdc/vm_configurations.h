@@ -21,7 +21,7 @@
 					SOS_CONSOLE	\
 					"consoleblank=0 "	\
 					"no_timer_check "	\
-					"quiet loglevel=3 "	\
+					"quiet loglevel=7 "	\
 					"i915.nuclear_pageflip=1 " \
 					"i915.avail_planes_per_pipe=0x01010F "	\
 					"i915.domain_plane_owners=0x011111110000 " \

@@ -215,6 +215,8 @@ extern uint64_t               main_entry[1];
 extern uint64_t               secondary_cpu_stack[1];
 extern uint8_t                oem_dsdt_start;
 extern uint8_t                oem_dsdt_end;
+extern uint8_t                oem_apic_start;
+extern uint8_t                oem_apic_end;
 extern uint8_t                oem_facp_start;
 extern uint8_t                oem_facp_end;
 

@@ -35,6 +35,7 @@
 #include <host_pm.h>
 #include <acrn_common.h>
 #include <vm_reset.h>
+#include <cpu.h>
 
 /* Per ACPI spec:
  * There are two fundamental types of ACPI tables:
@@ -166,7 +167,8 @@ static void overwrite_acpi_table(const char *signature, const uint8_t *oem_acpi_
 void overwrite_acpi_tables(void)
 {
 	overwrite_acpi_table(ACPI_SIG_DSDT, &oem_dsdt_start, (&oem_dsdt_end - &oem_dsdt_start));
-	//overwrite_acpi_table(ACPI_SIG_FADT, &oem_facp_start, (&oem_facp_end - &oem_facp_start));
+	overwrite_acpi_table("APIC", &oem_apic_start, (&oem_apic_end - &oem_apic_start));
+	overwrite_acpi_table(ACPI_SIG_FADT, &oem_facp_start, (&oem_facp_end - &oem_facp_start));
 }
 
 /* put all ACPI fix up code here */
