@@ -835,6 +835,7 @@ static int32_t shell_dumpmem(int32_t argc, char **argv)
 		return -EINVAL;
 	}
 
+	stac();
 	addr = strtoul_hex(argv[1]);
 	length = (uint32_t)strtol_deci(argv[2]);
 	if (length > MAX_MEMDUMP_LEN) {
@@ -863,6 +864,7 @@ static int32_t shell_dumpmem(int32_t argc, char **argv)
 			*(ptr + ((i * 4U) + 2U)), *(ptr + ((i * 4U) + 3U)));
 		shell_puts(temp_str);
 	}
+	clac();
 
 	return 0;
 }

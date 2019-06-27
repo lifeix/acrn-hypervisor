@@ -418,7 +418,7 @@ basl_fwrite_fadt(FILE *fp, struct vmctx *ctx)
 	EFPRINTF(fp, "\t\t\tRTC_STS valid on S4 wake (V4) : 0\n");
 	EFPRINTF(fp, "\t\t\tRemote Power-on capable (V4) : 0\n");
 	EFPRINTF(fp, "\t\t\tUse APIC Cluster Model (V4) : 0\n");
-	EFPRINTF(fp, "\t\t\tUse APIC Physical Destination Mode (V4) : 0\n");
+	EFPRINTF(fp, "\t\t\tUse APIC Physical Destination Mode (V4) : 1\n");
 	EFPRINTF(fp, "\t\t\tHardware Reduced (V5) : 0\n");
 	EFPRINTF(fp, "\t\t\tLow Power S0 Idle (V5) : 0\n");
 	EFPRINTF(fp, "\n");

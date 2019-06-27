@@ -15,13 +15,15 @@
 #define DM_OWNED_GUEST_FLAG_MASK	(GUEST_FLAG_SECURE_WORLD_ENABLED | GUEST_FLAG_LAPIC_PASSTHROUGH | \
 						GUEST_FLAG_RT | GUEST_FLAG_IO_COMPLETION_POLLING)
 
+					/*"noapic "	\*/
 #define SOS_VM_BOOTARGS			SOS_ROOTFS	\
 					"rw rootwait "	\
 					"console=tty0 " \
 					SOS_CONSOLE	\
 					"consoleblank=0 "	\
 					"no_timer_check "	\
-					"quiet loglevel=7 "	\
+					"debugpat "	\
+					"loglevel=7 "	\
 					"i915.nuclear_pageflip=1 " \
 					"i915.avail_planes_per_pipe=0x01010F "	\
 					"i915.domain_plane_owners=0x011111110000 " \
