@@ -30,6 +30,7 @@
 #include <sgx.h>
 #include <sbuf.h>
 #include <pci_dev.h>
+#include <watchdog.h>
 
 vm_sw_loader_t vm_sw_loader;
 
@@ -517,6 +518,8 @@ int32_t create_vm(uint16_t vm_id, struct acrn_vm_config *vm_config, struct acrn_
 		if (!is_lapic_pt_configured(vm)) {
 			vioapic_init(vm);
 		}
+
+		wtd_init(vm);
 
 		/* Populate return VM handle */
 		*rtn_vm = vm;
