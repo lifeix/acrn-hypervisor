@@ -36,6 +36,9 @@
 #include <logmsg.h>
 #include <pci_dev.h>
 
+#define P2SB_BRIDGE_BDF	((0x1fU << 3U) | 0x1U)
+#define P2SB_CONTROL_OFFSET	0xe0U
+
 static spinlock_t pci_device_lock;
 static uint32_t num_pci_pdev;
 static struct pci_pdev pci_pdev_array[CONFIG_MAX_PCI_DEV_NUM];
@@ -151,6 +154,7 @@ void init_pci_pdev_list(void)
 
 			for (func = 0U; func <= PCI_FUNCMAX; func++) {
 				pbdf.bits.f = func;
+
 				val = pci_pdev_read_cfg(pbdf, PCIR_VENDOR, 4U);
 
 				if ((val == 0xFFFFFFFFU) || (val == 0U) || (val == 0xFFFF0000U) || (val == 0xFFFFU)) {
@@ -159,8 +163,16 @@ void init_pci_pdev_list(void)
 						break;
 					}
 
-					/* continue scan next function */
-					continue;
+					if (pbdf.value != P2SB_BRIDGE_BDF) {
+						/* continue scan next function */
+						continue;
+					} else {
+						val = pci_pdev_read_cfg(pbdf, P2SB_CONTROL_OFFSET, 4U);
+						/* Bit 8 - Hide Device (HIDE) */
+						if ((val & (0x1U << 8U)) == 0U) {
+							continue;
+						}
+					}
 				}
 
 				/* if it is debug uart, hide it from SOS */
