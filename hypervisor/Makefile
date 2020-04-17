@@ -308,7 +308,6 @@ VP_BASE_C_SRCS += arch/x86/configs/pci_dev.c
 VP_BASE_C_SRCS += arch/x86/configs/vacpi.c
 
 # virtual platform device model
-VP_DM_C_SRCS += dm/vpic.c
 VP_DM_C_SRCS += dm/vrtc.c
 VP_DM_C_SRCS += dm/vioapic.c
 VP_DM_C_SRCS += dm/vuart.c

@@ -59,11 +59,6 @@
 #define ACRN_REQUEST_EVENT			1U
 
 /**
- * @brief Request for external interrupt from vPIC
- */
-#define ACRN_REQUEST_EXTINT			2U
-
-/**
  * @brief Request for non-maskable interrupt
  */
 #define ACRN_REQUEST_NMI			3U
