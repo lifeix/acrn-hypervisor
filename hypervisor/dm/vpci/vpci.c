@@ -377,6 +377,9 @@ static void vpci_init_pt_dev(struct pci_vdev *vdev)
 
 static void vpci_deinit_pt_dev(struct pci_vdev *vdev)
 {
+	pr_err("%s hlist_del %x:%x.%x\n", __func__, vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f);
+	hlist_del(&vdev->link);
+
 	deinit_vdev_pt(vdev);
 	remove_vdev_pt_iommu_domain(vdev);
 	deinit_vmsix(vdev);
@@ -617,7 +620,10 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 	vdev->pci_dev_config = dev_config;
 	vdev->phyfun = parent_pf_vdev;
 
-	hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(dev_config->vbdf.value, VDEV_LIST_HASHBITS)]);
+	if (!is_postlaunched_vm(vpci2vm(vpci))) {
+		pr_err("%s hlist_add_head %x:%x.%x\n", __func__, dev_config->vbdf.bits.b, dev_config->vbdf.bits.d, dev_config->vbdf.bits.f);
+		hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(dev_config->vbdf.value, VDEV_LIST_HASHBITS)]);
+	}
 	if (dev_config->vdev_ops != NULL) {
 		vdev->vdev_ops = dev_config->vdev_ops;
 	} else {
@@ -716,7 +722,7 @@ int32_t vpci_assign_pcidev(struct acrn_vm *tgt_vm, struct acrn_assign_pcidev *pc
 		vdev->flags |= pcidev->type;
 		vdev->bdf.value = pcidev->virt_bdf;
 		/*We should re-add the vdev to hashlist since its vbdf has changed */
-		hlist_del(&vdev->link);
+		pr_err("%s hlist_add_head %x:%x.%x\n", __func__, vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f);
 		hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(vdev->bdf.value, VDEV_LIST_HASHBITS)]);
 		vdev->parent_user = vdev_in_sos;
 		spinlock_release(&tgt_vm->vpci.lock);
