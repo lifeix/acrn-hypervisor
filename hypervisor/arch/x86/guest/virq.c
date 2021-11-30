@@ -285,6 +285,7 @@ static void vcpu_inject_exception(struct acrn_vcpu *vcpu)
 void vcpu_inject_extint(struct acrn_vcpu *vcpu)
 {
 	vcpu_make_request(vcpu, ACRN_REQUEST_EXTINT);
+		pr_err("%s, %d____________", __func__, __LINE__);
 	signal_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
 }
 
@@ -292,6 +293,7 @@ void vcpu_inject_extint(struct acrn_vcpu *vcpu)
 void vcpu_inject_nmi(struct acrn_vcpu *vcpu)
 {
 	vcpu_make_request(vcpu, ACRN_REQUEST_NMI);
+		pr_err("%s, %d____________", __func__, __LINE__);
 	signal_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
 }
 

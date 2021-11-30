@@ -136,6 +136,7 @@ void make_reschedule_request(uint16_t pcpu_id, uint16_t delmode)
 		switch (delmode) {
 		case DEL_MODE_IPI:
 			send_single_ipi(pcpu_id, NOTIFY_VCPU_VECTOR);
+		//pr_fatal("%s, %d_____, __func__, __LINE__");
 			break;
 		case DEL_MODE_NMI:
 			send_single_nmi(pcpu_id);

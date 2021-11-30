@@ -115,6 +115,10 @@
     </xsl:call-template>
 
     <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'VIOMMU_ENABLED'" />
+    </xsl:call-template>
+
+    <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'ACPI_PARSE_ENABLED'" />
     </xsl:call-template>
 

@@ -77,6 +77,7 @@ void vcpu_complete_lock_instr_emulation(struct acrn_vcpu *cur_vcpu)
 				 * is unhandled, and signal_event only when the request was already handled.
 				 */
 				if (!vcpu_try_cancel_request(other, ACRN_REQUEST_SPLIT_LOCK)) {
+		pr_err("%s, %d____________", __func__, __LINE__);
 					signal_event(&other->events[VCPU_EVENT_SPLIT_LOCK]);
 				}
 			}

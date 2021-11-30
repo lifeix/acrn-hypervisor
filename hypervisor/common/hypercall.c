@@ -597,6 +597,7 @@ int32_t hcall_notify_ioreq_finish(__unused struct acrn_vcpu *vcpu, struct acrn_v
 		} else {
 			target_vcpu = vcpu_from_vid(target_vm, vcpu_id);
 			if (!target_vcpu->vm->sw.is_polling_ioreq) {
+		pr_err("%s, %d____________", __func__, __LINE__);
 				signal_event(&target_vcpu->events[VCPU_EVENT_IOREQ]);
 			}
 			ret = 0;

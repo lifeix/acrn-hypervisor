@@ -61,7 +61,7 @@ CFLAGS += -fsigned-char
 CFLAGS += -m64 -mno-mmx -mno-sse -mno-sse2 -mno-80387 -mno-fp-ret-in-387
 CFLAGS += -mno-red-zone -mpopcnt
 CFLAGS += -nostdinc -nostdlib -fno-common
-CFLAGS += -Werror
+#CFLAGS += -Werror
 
 # ACRN depends on zero length array. Silence the gcc if Warrary-bounds is default option
 CFLAGS += -Wno-array-bounds
@@ -285,6 +285,9 @@ endif
 ifeq ($(CONFIG_NVMX_ENABLED),y)
 VP_BASE_C_SRCS += arch/x86/guest/nested.c
 VP_BASE_C_SRCS += arch/x86/guest/vept.c
+endif
+ifeq ($(CONFIG_VIOMMU_ENABLED),y)
+VP_BASE_C_SRCS += arch/x86/guest/viommu.c
 endif
 VP_BASE_C_SRCS += boot/guest/vboot_info.c
 ifeq ($(CONFIG_GUEST_KERNEL_BZIMAGE),y)

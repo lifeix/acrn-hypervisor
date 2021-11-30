@@ -460,6 +460,7 @@ static int32_t wbinvd_vmexit_handler(struct acrn_vcpu *vcpu)
 
 			foreach_vcpu(i, vcpu->vm, other) {
 				if (other != vcpu) {
+		pr_err("%s, %d____________", __func__, __LINE__);
 					signal_event(&other->events[VCPU_EVENT_SYNC_WBINVD]);
 				}
 			}

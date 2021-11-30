@@ -58,6 +58,7 @@ void smp_call_function(uint64_t mask, smp_call_func_t func, void *data)
 		}
 		pcpu_id = ffs64(mask);
 	}
+		pr_fatal("%s, %d_____, __func__, __LINE__");
 	send_dest_ipi_mask((uint32_t)smp_call_mask, NOTIFY_VCPU_VECTOR);
 	/* wait for current smp call complete */
 	wait_sync_change(&smp_call_mask, 0UL);

@@ -538,6 +538,7 @@ static void vlapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool
 	if ((lapic->svr.v & APIC_SVR_ENABLE) == 0U) {
 		dev_dbg(DBG_LEVEL_VLAPIC, "vlapic is software disabled, ignoring interrupt %u", vector);
 	} else {
+		pr_err("%s, %d____________", __func__, __LINE__);
 		signal_event(&vlapic2vcpu(vlapic)->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
 		vlapic->ops->accept_intr(vlapic, vector, level);
 	}

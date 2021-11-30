@@ -148,6 +148,11 @@ support RDT or CDP, setting this option to ``y`` is ignored.</xs:documentation>
         <xs:documentation>Enable nested virtualization.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="VIOMMU_ENABLED" type="Boolean" default="n">
+      <xs:annotation>
+        <xs:documentation>Enable virtual IOMMU.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="IOMMU_ENFORCE_SNP" type="Boolean" default="n">
       <xs:annotation>
         <xs:documentation>Specify if the IOMMU enforces snoop behavior

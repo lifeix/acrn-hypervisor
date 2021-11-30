@@ -807,6 +807,7 @@ void kick_vcpu(struct acrn_vcpu *vcpu)
 			send_single_nmi(pcpu_id);
 		} else {
 			send_single_ipi(pcpu_id, NOTIFY_VCPU_VECTOR);
+		pr_fatal("%s, %d_____, __func__, __LINE__");
 		}
 	}
 }
@@ -960,7 +961,7 @@ void launch_vcpu(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
-	pr_dbg("vcpu%hu scheduled on pcpu%hu", vcpu->vcpu_id, pcpu_id);
+	pr_err("vcpu%hu scheduled on pcpu%hu___________", vcpu->vcpu_id, pcpu_id);
 	vcpu_set_state(vcpu, VCPU_RUNNING);
 	wake_thread(&vcpu->thread_obj);
 
@@ -1047,6 +1048,7 @@ void vcpu_handle_pi_notification(uint32_t vcpu_index)
 			 * Record this request as ACRN_REQUEST_EVENT,
 			 * so that vlapic_inject_intr() will sync PIR to vIRR
 			 */
+		pr_err("%s, %d____________", __func__, __LINE__);
 			signal_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
 			vcpu_make_request(vcpu, ACRN_REQUEST_EVENT);
 		}

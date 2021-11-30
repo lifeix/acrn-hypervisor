@@ -51,6 +51,7 @@ void signal_event(struct sched_event *event)
 	spinlock_irqsave_obtain(&event->lock, &rflag);
 	event->nqueued--;
 	if (event->waiting_thread != NULL) {
+		pr_err("%s, %d__________________\n", __func__, __LINE__);
 		wake_thread(event->waiting_thread);
 	}
 	spinlock_irqrestore_release(&event->lock, rflag);
