@@ -106,7 +106,7 @@
       <xsl:value-of select="concat('hugepagesz=1G hugepages=', $hugepages)" />
     </xsl:if>
   </xsl:variable>
-  <xsl:value-of select="acrn:define('SERVICE_VM_BOOTARGS_DIFF', concat($quot, $bootargs, ' ', $maxcpus, ' ', $hugepage_kernelstring, ' ', $quot), '')" />
+  <xsl:value-of select="acrn:define('SERVICE_VM_BOOTARGS_DIFF', concat($quot, $bootargs, ' ', $maxcpus, ' ', ' ', ' ', $quot), '')" />
 </xsl:template>
 
 <xsl:template name="cpu_affinity">
