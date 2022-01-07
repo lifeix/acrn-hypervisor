@@ -29,7 +29,7 @@ void init_hw_timer(void)
 {
 	int32_t retval = 0;
 
-	if (get_pcpu_id() == BSP_CPU_ID) {
+	if (get_pcpu_id() == 8) {
 		retval = request_irq(TIMER_IRQ, timer_expired_handler, NULL, IRQF_NONE);
 		if (retval < 0) {
 			pr_err("Timer setup failed");
