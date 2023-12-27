@@ -76,6 +76,9 @@ public:
 	stream_config_t m_stream_list;
 	stream_t m_stream;
 	bool is_callback_available() { return m_data_notify != NULL; }
+	int q_buffer(struct virtual_camera_request* req);
+	int dq_buffer(struct virtual_camera_request* req);
+
 
 private:
 	int m_fd;
@@ -84,6 +87,9 @@ private:
 	int m_memory_size;
 	void *m_shared_mem;
 	vcamera_data_notify m_data_notify;
+	std::queue<struct virtual_camera_request> m_buffer_list;
+	std::mutex m_buffer_list_mutex;
+	std::condition_variable m_buffer_signal;
 };
 
 camera_client *g_camera_clients[g_max_camera_number];
@@ -112,6 +118,32 @@ void camera_client::data_notify(struct virtual_camera_request *req)
 	buffer.index = req->buffer.index;
 	get_buffer(&buffer);
 	m_data_notify(m_camera_id, &buffer);
+}
+
+int camera_client::q_buffer(struct virtual_camera_request *req)
+{
+	std::unique_lock<std::mutex> lock(m_buffer_list_mutex);
+
+	m_buffer_list.push(*req);
+	m_buffer_signal.notify_one();
+
+	return 0;
+}
+
+int camera_client::dq_buffer(struct virtual_camera_request* req)
+{
+	std::unique_lock<std::mutex> lock(m_buffer_list_mutex);
+
+	if (m_buffer_list.empty())
+	{
+		printf("camera_client::%s m_camera_id %d wait for buffer enqueue\n", __func__, m_camera_id);
+		m_buffer_signal.wait(lock);
+	}
+
+	*req = m_buffer_list.front();
+	m_buffer_list.pop();
+
+	return 0;
 }
 
 int camera_client::create_buffer()
@@ -177,11 +209,9 @@ int camera_client_handle(struct virtual_camera_request *req)
 	case VIRTUAL_CAMERA_DQBUF:
 		if (g_camera_clients[req->camera_id]->is_callback_available()) {
 			g_camera_clients[req->camera_id]->data_notify(req);
-		} else {
-			pthread_mutex_lock(&g_camera_client_req_mutex);
-			g_msg = *req;
-			pthread_cond_broadcast(&g_camera_client_req_cond);
-			pthread_mutex_unlock(&g_camera_client_req_mutex);
+		} else
+		{
+			g_camera_clients[req->camera_id]->q_buffer(req);
 		}
 	default:
 		break;
@@ -306,15 +336,7 @@ int camera_client_stream_dqbuf(int camera_id, struct virtual_camera_request *rsp
 {
 	printf("%s Enter\n", __func__);
 
-	pthread_mutex_lock(&g_camera_client_req_mutex);
-	while (!((g_msg.type == VIRTUAL_CAMERA_DQBUF) && (g_msg.camera_id == camera_id))) {
-		printf("wait for type %d\n", rsp->type);
-		pthread_cond_wait(&g_camera_client_req_cond, &g_camera_client_req_mutex);
-	};
-	*rsp = g_msg;
-	printf("camera_client_stream_dqbuf get index %d\n", rsp->buffer.index);
-	g_msg.type = VIRTUAL_CAMERA_RET_INVALID;
-	pthread_mutex_unlock(&g_camera_client_req_mutex);
+	g_camera_clients[camera_id]->dq_buffer(rsp);
 
 	return 0;
 }
@@ -518,7 +540,7 @@ int vcamera_stream_qbuf(int camera_id, camera_buffer_t **buffer, int num_buffers
 	struct virtual_camera_request req = {0};
 
 	req.buffer.index = buffer[0]->index;
-	printf("vcamera_stream_qbuf get_index %d\n", req.buffer.index);
+	printf("camera_id %d vcamera_stream_qbuf get_index %d\n", camera_id, req.buffer.index);
 	return camera_client_stream_qbuf(camera_id, &req);
 }
 
