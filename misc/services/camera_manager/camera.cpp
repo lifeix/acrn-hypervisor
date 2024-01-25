@@ -38,7 +38,7 @@ std::shared_ptr<camera_deserializer> camera::get_deserializer(int camera_id, con
 camera::camera(int camera_id) : m_buffer_number(MAX_CAMERA_BUFFER),m_camera_id(camera_id),m_streams{ 0 },
 	m_stream_list{ 0 },m_camera_info{ 0 },m_buffers{0}
 {
-	pr_info("camera::%s Enter\n", __func__);
+	pr_info("camera::%s Enter, camera_id %d\n", __func__, camera_id);
 
 	m_camera_info.id = camera_id;
 	get_physical_camera_config(m_camera_info);
@@ -72,7 +72,7 @@ int camera::open()
 	pr_info("camera::%s Enter\n", __func__);
 
 	ret = m_camera_deserializer->open(m_camera_id);
-	pr_info("camera manager m_camera_deserializer->open ret = %d\n", ret);
+	pr_info("camera manager m_camera_deserializer->open m_camera_id %d ret = %d\n", m_camera_id, ret);
 
 	memset(&input_config, 0, sizeof(stream_t));
 	input_config.format = -1;
@@ -156,7 +156,8 @@ int camera::streams_init()
 	m_stream_list.streams = m_streams;
 	m_stream_list.operation_mode = CAMERA_STREAM_CONFIGURATION_MODE_AUTO;
 	ret = m_camera_deserializer->streams_config(m_camera_id, &m_stream_list);
-	pr_info("camera manager operation_mode %d m_camera_deserializer->streams_config ret = %d\n",
+	pr_info("camera manager m_camera_id %d operation_mode %d m_camera_deserializer->streams_config ret = %d\n",
+			m_camera_id,
 	        m_stream_list.operation_mode,
 	        ret);
 
@@ -167,7 +168,7 @@ int camera::start()
 {
 	int ret = 0;
 	auto_lock l(m_consumers_mutex);
-	pr_info("camera::%s Enter\n", __func__);
+	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
 	if (m_consumers.size() == 0) {
 		ret = m_camera_deserializer->stream_start(m_camera_id);
 	}
@@ -192,6 +193,7 @@ int camera::qbuf(camera_buffer_t **buffer, int num_buffers, camera_data_consumer
 	auto_lock ll(m_buffer_map_mutex);
 
 	pr_info("camera::%s Enter,consumer %p camera_buffer_t[0]->addr %p\n", __func__, consumer, buffer[0]->addr);
+	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
 
 	for (int i = 0; i < num_buffers; i++) {
 		try {
@@ -262,6 +264,7 @@ int camera::qbuf(camera_buffer_t **buffer, int num_buffers, camera_data_consumer
 int camera::handle_data(camera_data *pdata)
 {
 	pr_info("camera::handle_data Enter, call notify\n");
+	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
 	{
 		auto_lock l(m_consumers_mutex);
 		if (m_consumers.size() == 0) {
@@ -289,7 +292,7 @@ int camera::buffers_init()
 	camera_buffer_t *buf = nullptr;
 	int total_memory_size = 0;
 
-	pr_info("camera::%s Enter\n", __func__);
+	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
 	if (m_stream_list.num_streams < 0) {
 		return -1;
 	}
@@ -352,7 +355,7 @@ int camera::buffers_uninit()
 	camera_buffer_t *buf = nullptr;
 	int total_memory_size = 0;
 
-	pr_info("camera::%s Enter\n", __func__);
+	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
 
 	for (int i = 0; i < m_stream_list.num_streams; i++) {
 		int frame_size = ALIGN_UP(m_streams[i].size, getpagesize());

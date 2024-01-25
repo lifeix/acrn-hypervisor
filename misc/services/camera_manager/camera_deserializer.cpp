@@ -27,6 +27,11 @@
 		pr_info("%s faild, errno is 0x%x\n", __func__, errno);                                                 \
 	}
 
+#define CHECK_CAMERA_ID(id)                                                                                               \
+	if ((id) < 0 || (id) > MAX_SERIALIZER_NUMBER) {                                                                                             \
+		pr_info("%s camera id check faild, camera is 0x%x\n", __func__, (id));                                                 \
+	}
+
 camera_deserializer::camera_deserializer(int deserializer_id,const char* camera_lib) : m_process_thread(nullptr),
 	m_deserializer_id(deserializer_id),m_ops{ 0 },m_hal_handle(nullptr),m_stream_list{0},m_camera_tid(0)
 {
@@ -40,6 +45,8 @@ camera_deserializer::~camera_deserializer() { pr_info("camera_deserializer::%s E
 int camera_deserializer::open(int camera_id)
 {
 	int ret = -1;
+
+	CHECK_CAMERA_ID(camera_id);
 
 	pr_info("camera_deserializer::%s Enter\n", __func__);
 	if (m_ops.open != NULL) {
@@ -57,6 +64,9 @@ int camera_deserializer::open(int camera_id)
 int camera_deserializer::close(int camera_id)
 {
 	pr_info("camera_deserializer::%s Enter\n", __func__);
+
+	CHECK_CAMERA_ID(camera_id);
+
 	if (m_ops.close != NULL) {
 		m_ops.close(camera_id);
 	}
@@ -69,6 +79,8 @@ int camera_deserializer::close(int camera_id)
 int camera_deserializer::config_sensor_input(int camera_id, stream_t *input_config)
 {
 	int ret = 0;
+
+	CHECK_CAMERA_ID(camera_id);
 
 	pr_info("camera_deserializer::%s Enter\n", __func__);
 	if (m_ops.config_sensor_input)
@@ -98,7 +110,10 @@ int camera_deserializer::qbuf(int camera_id, camera_buffer_t **buffer, int num_b
 {
 	int ret = -1;
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);
+
+	CHECK_CAMERA_ID(camera_id);
+
 	if (m_ops.stream_qbuf)
 		ret = m_ops.stream_qbuf(camera_id, buffer, num_buffers, settings);
 
@@ -111,16 +126,21 @@ int camera_deserializer::stream_qbuf(int camera_id, camera_buffer_t **buffer, in
 	int ret = 0;
 	camera_request request = {0};
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);
 	request.m_camera_id = camera_id;
 	request.m_buffer_number = num_buffers;
+
+	CHECK_CAMERA_ID(camera_id);
 
 	for (int i = 0; i < num_buffers; i++) {
 		request.m_buffers[i] = *buffer[i];
 	}
 
 	ret = qbuf(camera_id, buffer, num_buffers);
+	pr_info("camera_deserializer::%s push request m_camera_id %d m_request_id %d m_buffer_number %d\n",
+		__func__,request.m_camera_id,request.m_request_id,request.m_buffer_number);
 
+	std::unique_lock<std::mutex> lock(m_request_mutex);
 	m_pending_request.push(request);
 	m_request_signal.notify_one();
 
@@ -132,7 +152,9 @@ int camera_deserializer::dqbuf(int camera_id, int stream_id, camera_buffer_t **b
 {
 	int ret = -1;
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d \n", __func__, camera_id);
+	CHECK_CAMERA_ID(camera_id);
+
 	if (m_ops.stream_dqbuf)
 		ret = m_ops.stream_dqbuf(camera_id, stream_id, buffer, settings);
 
@@ -144,7 +166,9 @@ int camera_deserializer::streams_config(int camera_id, stream_config_t *stream_l
 {
 	int ret = 0;
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);\
+	CHECK_CAMERA_ID(camera_id);
+
 	if (m_ops.config_streams)
 		ret = m_ops.config_streams(camera_id, stream_list);
 
@@ -160,6 +184,9 @@ int camera_deserializer::streams_config(int camera_id, stream_config_t *stream_l
 int camera_deserializer::stream_start(int camera_id)
 {
 	int ret = -1;
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);
+	CHECK_CAMERA_ID(camera_id);
+
 	if (!m_process_thread) {
 		try {
 			m_process_thread = new std::thread(process_request, this);
@@ -181,7 +208,9 @@ int camera_deserializer::get_frame_size(int camera_id, int format, int width, in
 {
 	int size = 0;
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);
+	CHECK_CAMERA_ID(camera_id);
+
 	if (m_ops.get_frame_size) {
 		size = m_ops.get_frame_size(camera_id, format, width, height, field, bpp);
 	} else { // default format is YUYV
@@ -195,7 +224,9 @@ int camera_deserializer::stream_stop(int camera_id)
 {
 	int ret = -1;
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);
+	CHECK_CAMERA_ID(camera_id);
+
 	if (m_ops.stop_stream)
 		ret = m_ops.stop_stream(camera_id);
 
@@ -207,8 +238,10 @@ int camera_deserializer::get_stream_id(int camera_id, stream_t s)
 {
 	int i = -1;
 
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, camera_id %d\n", __func__,camera_id);
 	pr_info("camera_deserializer::%s streams number is %d\n", __func__, m_stream_list[camera_id].num_streams);
+	CHECK_CAMERA_ID(camera_id);
+
 	for (i = 0; i < m_stream_list[camera_id].num_streams; i++) {
 		pr_info("camera_deserializer::%s streams[%d] info: 0x%x, %d x %d\n",
 		        __func__,
@@ -233,9 +266,13 @@ int camera_deserializer::get_stream_id(int camera_id, stream_t s)
  */
 int camera_deserializer::get_next_request(camera_request &request)
 {
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s Enter, m_pending_request size is %d\n", __func__,m_pending_request.size());
 	if (!m_pending_request.empty()) {
 		request = m_pending_request.front();
+
+		pr_info("camera_deserializer::%s get request m_camera_id %d m_request_id %d m_buffer_number %d\n",
+			__func__,request.m_camera_id,request.m_request_id,request.m_buffer_number);
+
 		m_pending_request.pop();
 		return 0;
 	} else {
@@ -254,7 +291,7 @@ void camera_deserializer::process_request(camera_deserializer *p)
 	camera_request request = {0};
 	camera_data notify_data = {0};
 	camera_buffer_t *buffer = nullptr;
-	pr_info("camera_deserializer::%s Enter\n", __func__);
+	pr_info("camera_deserializer::%s this %p Enter\n", __func__,p);
 	do {
 		/*Use scopes to avoiding explicit unlock*/
 		{
@@ -262,14 +299,15 @@ void camera_deserializer::process_request(camera_deserializer *p)
 
 			if (p->m_pending_request.empty())
 				p->m_request_signal.wait(lock);
-			pr_info("camera_deserializer::%s begin process\n", __func__);
+			pr_info("camera_deserializer::%s this %p begin process\n", __func__,p);
 			ret = p->get_next_request(request);
 		}
 
 		if (ret == 0) {
 			for (int i = 0; i < request.m_buffer_number; i++) {
 				stream_id = p->get_stream_id(request.m_camera_id, request.m_buffers[i].s);
-				pr_info("camera_deserializer::%s call dqbuf stream_id is %d\n", __func__, stream_id);
+				pr_info("camera_deserializer::%s call dqbuf camera %d stream_id is %d\n",__func__,
+					request.m_camera_id,stream_id);
 				buffer = &request.m_buffers[i];
 				ret = p->dqbuf(request.m_camera_id, stream_id, &buffer);
 				// TODO, add some camera states check
@@ -277,11 +315,11 @@ void camera_deserializer::process_request(camera_deserializer *p)
 				if (ret != 0)
 					continue;
 			}
-			pr_info("camera_deserializer::%s after call dqbuf %d\n", __func__, ret);
+			pr_info("camera_deserializer::%s this %p after call dqbuf %d\n", __func__, p, ret);
 			if (ret == 0) {
 				notify_data.id = request.m_camera_id;
 				notify_data.request = request;
-				pr_info("camera_deserializer::%s call notify\n", __func__);
+				pr_info("camera_deserializer::%s this %p call camera %d notify\n", __func__, p,request.m_camera_id);
 				p->notify(&notify_data);
 			}
 		}
