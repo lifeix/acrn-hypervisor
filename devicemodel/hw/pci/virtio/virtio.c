@@ -202,7 +202,7 @@ virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
 	      struct virtio_vq_info *queues,
 	      int backend_type)
 {
-	int i, rc;
+	int i, rc, j;
 	pthread_mutexattr_t attr;
 
 	/* base and pci_virtio_dev addresses must match */
@@ -220,6 +220,7 @@ virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
 	rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	if (rc) {
 		pr_err("%s, pthread_mutexattr_settype failed\n", __func__);
+		pthread_mutexattr_destroy(&attr);
 		return;
 	}
 
@@ -235,9 +236,14 @@ virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
 		rc = pthread_mutex_init(&queues[i].mtx, &attr);
 		if (rc) {
 			pr_err("%s, pthread_mutex_init failed\n", __func__);
+			for (j = 0; j < i; j++) {
+				pthread_mutex_destroy(&queues[j].mtx);
+			}
+			pthread_mutexattr_destroy(&attr);
 			return;
 		}
 	}
+	pthread_mutexattr_destroy(&attr);
 }
 
 /**
