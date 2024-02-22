@@ -390,6 +390,17 @@ int connect_devices(char *address, int port)
 	return 0;
 }
 
+int camera_client_set_client_name(char *name)
+{
+	struct virtual_camera_request req = {0};
+
+	req.camera_id = 0;
+	req.type = VIRTUAL_CAMERA_SET_CLIENT_NAME;
+	memcpy(req.client_name, name, strlen(name) + 1);
+
+	return send_msg(g_socket, &req);
+}
+
 int get_physical_id(int camera_logical_id)
 {
 	return camera_logical_id; // TODO, this should get from a xml or other script
@@ -405,6 +416,22 @@ int get_physical_id(int camera_logical_id)
 int vcamera_get_number_of_cameras()
 {
 	return 2; // TODO, this should get from a xml or other script
+}
+
+char g_client_name[128] = {'\0'};
+/**
+ * set vm name
+ *
+ * @param name The client name
+ * @param size The client name strlen, should be less than 128
+ * @return error code
+ **/
+int vcamera_set_client_name(char *name, int size)
+{
+	memcpy(g_client_name, name, size);
+	printf("vcamera_set_vm_info, client_name is %s\n", g_client_name);
+
+	return 0;
 }
 
 static int g_inited = 0;
@@ -431,6 +458,8 @@ int vcamera_hal_init()
 				return 0;
 			};
 		}
+
+		camera_client_set_client_name(g_client_name);
 
 		for (int i = 0; i < g_max_camera_number; i++) {
 			g_camera_clients[i] = new camera_client(i);

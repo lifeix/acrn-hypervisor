@@ -22,10 +22,9 @@ std::mutex g_handle_mutex;
 class virtual_cameras *g_camera_clients[VIRTUAL_CAMERA_NUMQ];
 struct virtual_vq_related g_camera_client_related[VIRTUAL_CAMERA_NUMQ];
 
-virtual_cameras::virtual_cameras(int client_id,int socket) : m_index(0),m_state(CLIENT_CONNECT),
-	m_closing(0),m_camera_number(0),m_client_id(client_id),m_socket(socket),m_thread(nullptr)
+int virtual_cameras::virtual_cameras_get_config(char *client_name)
 {
-	get_camera_list();
+	get_camera_list(client_name);
 
 	for (int i = 0; i < m_camera_number; i++) {
 		m_cameras_info[i].instance = nullptr;//(m_cameras_info[i].id);
@@ -36,7 +35,12 @@ virtual_cameras::virtual_cameras(int client_id,int socket) : m_index(0),m_state(
 		        m_cameras_info[i].id,
 		        this);
 	}
+	return 0;
+}
 
+virtual_cameras::virtual_cameras(int client_id,int socket) : m_index(0),m_state(CLIENT_CONNECT),
+	m_closing(0),m_camera_number(0),m_client_id(client_id),m_socket(socket),m_thread(nullptr)
+{
 	try {
 		m_thread = new std::thread(msg_thread, this);
 		m_thread->detach();
@@ -61,26 +65,25 @@ virtual_cameras::~virtual_cameras()
 	delete m_thread;
 };
 
-int virtual_cameras::get_camera_list()
+int virtual_cameras::get_camera_list(char *client_name)
 {
-	vm_camera_info vm_info = {0};
-	vm_info.vm_id = 1;
+	camera_client_info client_info = {0};
+	client_info.client_id = 1;
 
-	// TODO, get vm name from client
-	vm_info.vm_name = "VM" + std::to_string(m_client_id);
-	get_virtual_cameras_config(vm_info);
+	client_info.client_name = client_name;
+	get_virtual_cameras_config(client_info);
 
-	m_camera_number = vm_info.camera_infos.size();
-	pr_info("%s m_camera_number is %d \n", vm_info.vm_name.c_str(), m_camera_number);
+	m_camera_number = client_info.camera_infos.size();
+	pr_info("%s m_camera_number is %d \n", client_info.client_name.c_str(), m_camera_number);
 
-	for (int i = 0; i < vm_info.camera_infos.size(); i++) {
-		int index = vm_info.camera_infos[i].logical_id;
-		m_cameras_info[index].id = vm_info.camera_infos[i].physical_id;
+	for (int i = 0; i < client_info.camera_infos.size(); i++) {
+		int index = client_info.camera_infos[i].logical_id;
+		m_cameras_info[index].id = client_info.camera_infos[i].physical_id;
 		pr_info("%s Camera[%d] physical id is %d, shared = %d\n",
-		        vm_info.vm_name.c_str(),
-		        vm_info.camera_infos[i].logical_id,
-		        vm_info.camera_infos[i].physical_id,
-		        vm_info.camera_infos[i].shared);
+		        client_info.client_name.c_str(),
+		        client_info.camera_infos[i].logical_id,
+		        client_info.camera_infos[i].physical_id,
+		        client_info.camera_infos[i].shared);
 	}
 
 	return 0;
@@ -175,6 +178,9 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 
 	pr_info("Camera Manager req->type  %d\n", req->type);
 	switch (req->type) {
+	case VIRTUAL_CAMERA_SET_CLIENT_NAME:
+		virtual_cameras_get_config(req->client_name);
+		break;
 	case VIRTUAL_CAMERA_GET_FORMAT:
 		break;
 	case VIRTUAL_CAMERA_SET_FORMAT:
@@ -275,6 +281,9 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 		break;
 
 	case VIRTUAL_CAMERA_QBUF:
+		/*User should call the create buffer before QBUF*/
+		if(!m_cameras_info[camera_id].buffers)
+			break;
 		buf = &m_cameras_info[camera_id].buffers[req->buffer.index];
 		for (int i = 0; i < g_buffer_count; i++) {
 			pr_info("VIRTUAL_CAMERA_QBUF before qbuf:camera %d, client %d m_buffers[%d][%d] %p index %d\n",

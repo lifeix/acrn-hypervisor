@@ -21,13 +21,13 @@ typedef enum {
 
 int main(int argc, char **argv)
 {
-	char *vm_name = "VM1";
+	char *client_name = "VM1";
 	int camera_id = 0;
 
-	get_vm_cameras_number(vm_name);
+	get_client_cameras_number(client_name);
 
 	camera_config_info info;
-	get_vm_camera_config(vm_name, &info, camera_id);
+	get_client_camera_config(client_name, &info, camera_id);
 
 	physical_camera_info_c pinfo;
 	pinfo.id = info.physical_id;

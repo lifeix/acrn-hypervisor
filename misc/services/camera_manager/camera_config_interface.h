@@ -21,8 +21,8 @@ typedef struct {
 	char driver[128];
 }physical_camera_info_c;
 
-int get_vm_cameras_number(char* vm_name);
-int get_vm_camera_config(char* vm_name,camera_config_info* info,int camera_id);
+int get_client_cameras_number(char* client_name);
+int get_client_camera_config(char* client_name,camera_config_info* info,int camera_id);
 int get_physical_camera_config(physical_camera_info_c* info);
 #ifdef __cplusplus
 }

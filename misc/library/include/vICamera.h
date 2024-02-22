@@ -472,6 +472,17 @@ int vcamera_get_formats_number(int camera_id);
  **/
 int vcamera_get_formats(int camera_id, stream_t* p, int* streams_number);
 
+/**
+ * set vm name
+ *
+ * @param [in] 
+ *   char *name: The client name
+ * @param [in]
+ *   int size: The client name strlen, should be less than 128
+ * @return error code
+ **/
+int vcamera_set_client_name(char *name, int size);
+
 #ifdef __cplusplus
 }
 #endif

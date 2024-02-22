@@ -141,6 +141,7 @@ typedef enum {
 	VIRTUAL_CAMERA_OPEN = 11,
 	VIRTUAL_CAMERA_CLOSE = 12,
 	VIRTUAL_CAMERA_DQBUF = 13,
+	VIRTUAL_CAMERA_SET_CLIENT_NAME = 14,
 
 	VIRTUAL_CAMERA_RET_OK = 0x100,
 
@@ -153,6 +154,7 @@ typedef enum {
 struct virtual_camera_request {
 	int index;
 	int camera_id;
+	char client_name[128];
 
 	virtual_camera_request_type type;
 	struct picture_format format;
@@ -183,8 +185,9 @@ public:
 	~virtual_cameras();
 
 	int get_stream_id(struct virtual_camera_request* req);
-	int get_camera_list();
+	int get_camera_list(char* client_name);
 	int get_virtual_camera_id(int physical_camera_id);
+	int virtual_cameras_get_config(char *client_name);
 
 protected:
 	virtual int handle_data(camera_data* pdata);

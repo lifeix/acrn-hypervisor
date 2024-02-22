@@ -11,9 +11,9 @@ struct deserializer {
 	vector<int> camera_ids;
 };
 
-struct vm_camera_info {
-	int vm_id;
-	std::string vm_name;
+struct camera_client_info {
+	int client_id;
+	std::string client_name;
 	vector<camera_config_info> camera_infos;
 };
 
@@ -34,6 +34,6 @@ struct camera_manager_info {
 	std::string address;
 };
 
-int get_virtual_cameras_config(vm_camera_info& vm_info);
+int get_virtual_cameras_config(camera_client_info& vm_info);
 int get_physical_camera_config(physical_camera_info& info);
 int get_camera_manager_config(camera_manager_info& info);

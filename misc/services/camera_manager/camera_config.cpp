@@ -7,12 +7,12 @@
 
 using json = nlohmann::json;
 
-static int get_virtual_camera_info(json &vm_cameras_array, vector<camera_config_info> &camera_infos)
+static int get_virtual_camera_info(json &client_cameras_array, vector<camera_config_info> &camera_infos)
 {
 	int index = 0;
-	for (auto it = vm_cameras_array.begin(); it != vm_cameras_array.end(); it++, index++) {
-		json vm = *it;
-		json camera = vm["camera"];
+	for (auto it = client_cameras_array.begin(); it != client_cameras_array.end(); it++, index++) {
+		json client = *it;
+		json camera = client["camera"];
 		int id = camera["id"].get<int>();
 		int phy_id = camera["phy_id"].get<int>();
 		json share_array = camera["share"];
@@ -28,12 +28,12 @@ static int get_virtual_camera_info(json &vm_cameras_array, vector<camera_config_
 	return 0;
 }
 
-static int get_virtual_camera_info(json &vm_cameras_array, camera_config_info *info, int camera_id)
+static int get_virtual_camera_info(json &client_cameras_array, camera_config_info *info, int camera_id)
 {
 	int index = 0;
-	for (auto it = vm_cameras_array.begin(); it != vm_cameras_array.end(); it++, index++) {
-		json vm = *it;
-		json camera = vm["camera"];
+	for (auto it = client_cameras_array.begin(); it != client_cameras_array.end(); it++, index++) {
+		json client = *it;
+		json camera = client["camera"];
 		int id = camera["id"].get<int>();
 		if (id == camera_id) {
 			int phy_id = camera["phy_id"].get<int>();
@@ -142,7 +142,7 @@ static int get_physical_camera_info(json &phy_camera_array, physical_camera_info
 	return 0;
 }
 
-int get_virtual_cameras_config(vm_camera_info &vm_info)
+int get_virtual_cameras_config(camera_client_info &client_info)
 {
 	json data;
 	std::ifstream f("virtual_camera.json");
@@ -154,10 +154,10 @@ int get_virtual_cameras_config(vm_camera_info &vm_info)
 		return -1;
 	}
 
-	json vm_cameras_array = data[vm_info.vm_name.c_str()];
-	get_virtual_camera_info(vm_cameras_array, vm_info.camera_infos);
+	json client_cameras_array = data[client_info.client_name.c_str()];
+	get_virtual_camera_info(client_cameras_array, client_info.camera_infos);
 
-	std::cout << "vm_cameras_array size " << vm_cameras_array.size() << ":" << std::setw(4) << vm_cameras_array
+	std::cout << "client_cameras_array size " << client_cameras_array.size() << ":" << std::setw(4) << client_cameras_array
 	          << std::endl;
 	return 0;
 }
@@ -203,7 +203,7 @@ int get_camera_manager_config(camera_manager_info &info)
 	return 0;
 }
 
-int get_vm_cameras_number(char *vm_name)
+int get_client_cameras_number(char *client_name)
 {
 	json data;
 	std::ifstream f("virtual_camera.json");
@@ -215,13 +215,13 @@ int get_vm_cameras_number(char *vm_name)
 		return -1;
 	}
 
-	json vm_cameras_array = data[vm_name];
-	std::cout << "vm_cameras_array:" << std::setw(4) << vm_cameras_array << std::endl;
+	json client_cameras_array = data[client_name];
+	std::cout << "client_cameras_array:" << std::setw(4) << client_cameras_array << std::endl;
 
-	return vm_cameras_array.size();
+	return client_cameras_array.size();
 }
 
-int get_vm_camera_config(char *vm_name, camera_config_info *info, int camera_id)
+int get_client_camera_config(char *client_name, camera_config_info *info, int camera_id)
 {
 	json data;
 	std::ifstream f("virtual_camera.json");
@@ -233,15 +233,15 @@ int get_vm_camera_config(char *vm_name, camera_config_info *info, int camera_id)
 		return -1;
 	}
 
-	json vm_cameras_array = data[vm_name];
-	if (camera_id < vm_cameras_array.size()) {
-		get_virtual_camera_info(vm_cameras_array, info, camera_id);
+	json client_cameras_array = data[client_name];
+	if (camera_id < client_cameras_array.size()) {
+		get_virtual_camera_info(client_cameras_array, info, camera_id);
 	} else {
 		printf("Can't find the virtual camera id %d.\n", camera_id);
 		return -1;
 	}
 
-	// std::cout << std::setw(4) << vm_cameras_array << std::endl;
+	// std::cout << std::setw(4) << client_cameras_array << std::endl;
 	return 0;
 }
 
