@@ -193,6 +193,8 @@ struct camera_ops {
 typedef enum _type {
 	V4L2_INTERFACE = 0,
 	HAL_INTERFACE = 1,
+	PROXY_INTERFACE = 2,
+	SUPER_FRAME_INTERFACE = 3,
 } interface_type;
 
 struct camera_dev {

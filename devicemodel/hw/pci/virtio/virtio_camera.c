@@ -53,51 +53,51 @@ static struct camera_dev camera_devs[] = {
     {
         .id = 0,
         .name = "video0",
-        .type = HAL_INTERFACE,
+        .type = PROXY_INTERFACE,
         .streams[0].width = 1280,
         .streams[0].height = 960,
     },
     {
         .id = 1,
         .name = "video1",
-        .type = HAL_INTERFACE,
+        .type = PROXY_INTERFACE,
         .streams[0].width = 1280,
         .streams[0].height = 960,
     },
     {
         .id = 2,
         .name = "video2",
-        .type = HAL_INTERFACE,
+        .type = PROXY_INTERFACE,
         .streams[0].width = 1280,
         .streams[0].height = 960,
     },
     {
         .id = 3,
         .name = "video3",
-        .type = HAL_INTERFACE,
+        .type = PROXY_INTERFACE,
         .streams[0].width = 1280,
         .streams[0].height = 960,
     },
     {
         .id = 4,
         .name = "video1000",
-        .type = HAL_INTERFACE,
+        .type = PROXY_INTERFACE,
         .streams[0].width = 1920,
         .streams[0].height = 1080,
     },
     {
         .id = 5,
         .name = "video1000",
-        .type = HAL_INTERFACE,
+        .type = PROXY_INTERFACE,
         .streams[0].width = 1920,
         .streams[0].height = 1080,
     },
     {
         .id = 6,
         .name = "video1000",
+        .type = SUPER_FRAME_INTERFACE,
         .streams[0].width = 1920,
         .streams[0].height = 1080,
-        .type = V4L2_INTERFACE,
     },
     {
         .id = 7,
@@ -525,21 +525,20 @@ static void *virtio_dqbuf_thread(void *data)
 				        buf->addr,
 				        p->uuid);
 
-#ifdef SHARE_CAMERA
-				memcpy(p->remapped_addr,
-				       buf->addr,
-				       camera_devs[camera_id].streams[0].width *
-				           camera_devs[camera_id].streams[0].height * 2);
-				ret = virtio_camera_stream_qbuf(camera_id, &buf, 1, NULL);
-#endif
+				if (camera_devs[camera_id].type == PROXY_INTERFACE) {
+					memcpy(p->remapped_addr,
+					       buf->addr,
+					       camera_devs[camera_id].streams[0].width *
+					           camera_devs[camera_id].streams[0].height * 2);
+					ret = virtio_camera_stream_qbuf(camera_id, &buf, 1, NULL);
+				}
+
 #ifdef PRINT_TIMESTAMP
 				{
 					struct timespec ts;
 
 					clock_gettime(CLOCK_REALTIME,&ts);
-					// long long milliseconds = (ts.tv_sec * 1000LL + ts.tv_nsec / 1e6);
-
-					p->buffer.timestamp = ts.tv_sec * 1e6 + ts.tv_nsec;
+					p->buffer.timestamp = ts.tv_sec * 1e9 + ts.tv_nsec;
 					pr_info("virtio camera test timestamp %lld\n",p->buffer.timestamp);
 				}
 #endif
@@ -917,8 +916,7 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 			camera_devs[camera_id].stream_state = 1;
 		}
 
-		if (camera_devs[camera_id].buffer_list == 0) {
-
+		if ((camera_devs[camera_id].type != PROXY_INTERFACE) || (camera_devs[camera_id].buffer_list == 0)) {
 			buf->index = buffer_index;
 			ret = virtio_camera_stream_qbuf(camera_id, &buf, 1, NULL);
 			pr_info("virtio_camera camera %d virtio_camera_stream_qbuf capture_buffers[%d].uuid %s ret = "
@@ -1180,7 +1178,6 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 
 		sprintf(thread_name, "acrn_virtio_camera_%d", i);
 		pthread_setname_np(vcamera->vcamera_tid[i], thread_name);
-
 		virtio_camera_dev_init(i);
 		ret = pthread_mutex_init(&camera_devs[i].capture_list_mutex, &attr);
 		if (ret)
