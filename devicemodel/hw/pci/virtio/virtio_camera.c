@@ -138,6 +138,7 @@ static int fill_hal_ops(char *hal_name)
 		GET_SYMBOL(g_hal_handle, g_hal_ops.get_parameters, "vcamera_get_parameters");
 		GET_SYMBOL(g_hal_handle, g_hal_ops.get_formats_number, "vcamera_get_formats_number");
 		GET_SYMBOL(g_hal_handle, g_hal_ops.get_formats, "vcamera_get_formats");
+		GET_SYMBOL(g_hal_handle, g_hal_ops.set_client_name, "vcamera_set_client_name");
 		return 0;
 	}
 	return -1;
@@ -151,6 +152,17 @@ void close_hal_handle()
 		g_hal_handle = NULL;
 	}
 }
+
+static int virtio_camera_set_client_name(int camera_id, char *name, int size)
+{
+	pr_info("virtio_camera %s Enter, client name %s\n", __func__,name);
+
+	if (camera_devs[camera_id].ops.set_client_name)
+		return camera_devs[camera_id].ops.set_client_name(name, size);
+	else
+		return -1;
+}
+
 
 static int virtio_camera_req_bufs(int camera_id)
 {
@@ -1178,6 +1190,7 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 
 		sprintf(thread_name, "acrn_virtio_camera_%d", i);
 		pthread_setname_np(vcamera->vcamera_tid[i], thread_name);
+		virtio_camera_set_client_name(i,ctx->name, strlen(ctx->name));
 		virtio_camera_dev_init(i);
 		ret = pthread_mutex_init(&camera_devs[i].capture_list_mutex, &attr);
 		if (ret)

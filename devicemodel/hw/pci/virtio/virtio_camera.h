@@ -188,6 +188,7 @@ struct camera_ops {
 	int (*req_bufs)(int camera_id);
 	int (*get_formats_number)(int camera_id);
 	int (*get_formats)(int camera_id, stream_t* p, int* streams_number);
+	int (*set_client_name)(char *name, int size);
 };
 
 typedef enum _type {
