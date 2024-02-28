@@ -11,7 +11,7 @@
 
 #include "vcamhal_type.h"
 
-#define VIRTIO_CAMERA_NUMQ 8
+#define MAX_VIRTIO_CAMERA_NUMQ 8
 // set the specific ID for frontend to recongnise
 #define VIRTIO_TYPE_CAMERA 42 /* virtio camera */
 #define MAX_BUFFER_COUNT 10
@@ -35,10 +35,10 @@ struct virtio_vq_related {
  */
 struct virtio_camera {
 	struct virtio_base base;
-	struct virtio_vq_info queues[VIRTIO_CAMERA_NUMQ];
-	struct virtio_vq_related vq_related[VIRTIO_CAMERA_NUMQ];
+	struct virtio_vq_info queues[MAX_VIRTIO_CAMERA_NUMQ];
+	struct virtio_vq_related vq_related[MAX_VIRTIO_CAMERA_NUMQ];
 
-	pthread_t vcamera_tid[VIRTIO_CAMERA_NUMQ];
+	pthread_t vcamera_tid[MAX_VIRTIO_CAMERA_NUMQ];
 	pthread_mutex_t vcamera_mutex;
 
 	int closing;
@@ -203,6 +203,7 @@ struct camera_dev {
 	int fd;
 	char name[10];
 	interface_type type;
+	void *hal_handle;
 	struct camera_ops ops;
 
 	stream_config_t supported_stream_list;

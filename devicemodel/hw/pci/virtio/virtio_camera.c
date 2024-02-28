@@ -27,6 +27,7 @@
 #include "virtio_kernel.h"
 #include "vmmapi.h"
 #include "vICamera.h"
+#include "camera_config_interface.h"
 
 #define VIRTIO_CAMERA_MAXSEGS 256
 #define SHARE_CAMERA
@@ -44,125 +45,100 @@ static int virtio_camera_start_stream(int camera_id);
 static int virtio_camera_stop_stream(int camera_id);
 static int map_buffer(int camera_id, int i);
 static int unmap_buffer(int camera_id, int buffer_index);
-struct camera_ops g_hal_ops = {0};
-void *g_hal_handle = NULL;
+static int g_camera_number = 0;
 
-struct camera_info g_camera_thread_param[VIRTIO_CAMERA_NUMQ];
+struct camera_info g_camera_thread_param[MAX_VIRTIO_CAMERA_NUMQ];
+static struct camera_dev camera_devs[MAX_VIRTIO_CAMERA_NUMQ] = {0};
 
-static struct camera_dev camera_devs[] = {
-    {
-        .id = 0,
-        .name = "video0",
-        .type = PROXY_INTERFACE,
-        .streams[0].width = 1280,
-        .streams[0].height = 960,
-    },
-    {
-        .id = 1,
-        .name = "video1",
-        .type = PROXY_INTERFACE,
-        .streams[0].width = 1280,
-        .streams[0].height = 960,
-    },
-    {
-        .id = 2,
-        .name = "video2",
-        .type = PROXY_INTERFACE,
-        .streams[0].width = 1280,
-        .streams[0].height = 960,
-    },
-    {
-        .id = 3,
-        .name = "video3",
-        .type = PROXY_INTERFACE,
-        .streams[0].width = 1280,
-        .streams[0].height = 960,
-    },
-    {
-        .id = 4,
-        .name = "video1000",
-        .type = PROXY_INTERFACE,
-        .streams[0].width = 1920,
-        .streams[0].height = 1080,
-    },
-    {
-        .id = 5,
-        .name = "video1000",
-        .type = PROXY_INTERFACE,
-        .streams[0].width = 1920,
-        .streams[0].height = 1080,
-    },
-    {
-        .id = 6,
-        .name = "video1000",
-        .type = SUPER_FRAME_INTERFACE,
-        .streams[0].width = 1920,
-        .streams[0].height = 1080,
-    },
-    {
-        .id = 7,
-        .name = "video1000",
-        .streams[0].width = 1920,
-        .streams[0].height = 1080,
-        .type = V4L2_INTERFACE,
-    },
+struct camera_config_ops {
+	int (*get_client_cameras_number)(char *client_name);
+	int (*get_client_camera_config)(char *client_name, camera_config_info *info, int camera_id);
+	int (*get_physical_camera_config)(physical_camera_info_c *info);
 };
+
+static void *g_camera_config_handle = NULL;
+static struct camera_config_ops g_camera_config_ops = {0};
 
 #define GET_SYMBOL(handle, p, symbol)                                                                                  \
 	(p) = (typeof(p))dlsym((handle), (symbol));                                                                    \
 	if ((p) == NULL) {                                                                                             \
-		pr_info("Failed to find function in %s %s\n", hal_name, dlerror());                                    \
+		pr_info("Failed to find function in %s %s\n", library_name, dlerror());                                \
 	}                                                                                                              \
 	pr_info("find %s\n", (symbol));
 
-static int fill_hal_ops(char *hal_name)
+static int fill_hal_ops(char *library_name, void **handle, struct camera_ops *hal_ops)
 {
-	g_hal_handle = dlopen(hal_name, RTLD_LAZY);
-	if (g_hal_handle == NULL) {
-		pr_info("Failed to open %s %s\n", hal_name, dlerror());
+	void *hal_handle = dlopen(library_name, RTLD_LAZY);
+
+	if (hal_handle == NULL) {
+		pr_info("Failed to open %s %s\n", library_name, dlerror());
 	} else {
-		GET_SYMBOL(g_hal_handle, g_hal_ops.get_camera_info, "vcamera_get_camera_info");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.hal_init, "vcamera_hal_init");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.hal_deinit, "vcamera_hal_deinit");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.open, "vcamera_device_open");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.close, "vcamera_device_close");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.config_sensor_input, "vcamera_device_config_sensor_input");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.config_streams, "vcamera_device_config_streams");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.start_stream, "vcamera_device_start");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.stop_stream, "vcamera_device_stop");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.allocate_memory, "vcamera_device_allocate_memory");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.get_frame_size, "vcamera_get_frame_size");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.stream_qbuf, "vcamera_stream_qbuf");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.stream_dqbuf, "vcamera_stream_dqbuf");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.set_parameters, "vcamera_set_parameters");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.get_parameters, "vcamera_get_parameters");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.get_formats_number, "vcamera_get_formats_number");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.get_formats, "vcamera_get_formats");
-		GET_SYMBOL(g_hal_handle, g_hal_ops.set_client_name, "vcamera_set_client_name");
+		GET_SYMBOL(hal_handle, hal_ops->get_camera_info, "vcamera_get_camera_info");
+		GET_SYMBOL(hal_handle, hal_ops->hal_init, "vcamera_hal_init");
+		GET_SYMBOL(hal_handle, hal_ops->hal_deinit, "vcamera_hal_deinit");
+		GET_SYMBOL(hal_handle, hal_ops->open, "vcamera_device_open");
+		GET_SYMBOL(hal_handle, hal_ops->close, "vcamera_device_close");
+		GET_SYMBOL(hal_handle, hal_ops->config_sensor_input, "vcamera_device_config_sensor_input");
+		GET_SYMBOL(hal_handle, hal_ops->config_streams, "vcamera_device_config_streams");
+		GET_SYMBOL(hal_handle, hal_ops->start_stream, "vcamera_device_start");
+		GET_SYMBOL(hal_handle, hal_ops->stop_stream, "vcamera_device_stop");
+		GET_SYMBOL(hal_handle, hal_ops->allocate_memory, "vcamera_device_allocate_memory");
+		GET_SYMBOL(hal_handle, hal_ops->get_frame_size, "vcamera_get_frame_size");
+		GET_SYMBOL(hal_handle, hal_ops->stream_qbuf, "vcamera_stream_qbuf");
+		GET_SYMBOL(hal_handle, hal_ops->stream_dqbuf, "vcamera_stream_dqbuf");
+		GET_SYMBOL(hal_handle, hal_ops->set_parameters, "vcamera_set_parameters");
+		GET_SYMBOL(hal_handle, hal_ops->get_parameters, "vcamera_get_parameters");
+		GET_SYMBOL(hal_handle, hal_ops->get_formats_number, "vcamera_get_formats_number");
+		GET_SYMBOL(hal_handle, hal_ops->get_formats, "vcamera_get_formats");
+		GET_SYMBOL(hal_handle, hal_ops->set_client_name, "vcamera_set_client_name");
+		*handle = hal_handle;
 		return 0;
 	}
 	return -1;
 }
 
-void close_hal_handle()
+void close_hal_handle(void *hal_handle, struct camera_ops *hal_ops)
 {
-	memset(&g_hal_ops, 0, sizeof(g_hal_ops));
-	if (g_hal_handle) {
-		dlclose(g_hal_handle);
-		g_hal_handle = NULL;
+	memset(&hal_ops, 0, sizeof(hal_ops));
+	if (hal_handle) {
+		dlclose(hal_handle);
+		hal_handle = NULL;
+	}
+}
+
+static int fill_config_ops(char *library_name, void **handle, struct camera_config_ops *camera_config_ops)
+{
+	void *config_handle = dlopen(library_name, RTLD_LAZY);
+	if (config_handle == NULL) {
+		pr_info("Failed to open %s %s\n", library_name, dlerror());
+	} else {
+		GET_SYMBOL(config_handle, camera_config_ops->get_client_cameras_number, "get_client_cameras_number");
+		GET_SYMBOL(config_handle, camera_config_ops->get_client_camera_config, "get_client_camera_config");
+		GET_SYMBOL(config_handle, camera_config_ops->get_physical_camera_config, "get_physical_camera_config");
+		*handle = config_handle;
+		return 0;
+	}
+	return -1;
+}
+
+void close_config_handle(void *handle, struct camera_config_ops *ops)
+{
+	memset(&ops, 0, sizeof(ops));
+	if (handle) {
+		dlclose(handle);
+		handle = NULL;
 	}
 }
 
 static int virtio_camera_set_client_name(int camera_id, char *name, int size)
 {
-	pr_info("virtio_camera %s Enter, client name %s\n", __func__,name);
+	pr_info("virtio_camera %s Enter, client name %s\n", __func__, name);
 
 	if (camera_devs[camera_id].ops.set_client_name)
 		return camera_devs[camera_id].ops.set_client_name(name, size);
 	else
 		return -1;
 }
-
 
 static int virtio_camera_req_bufs(int camera_id)
 {
@@ -174,23 +150,23 @@ static int virtio_camera_req_bufs(int camera_id)
 		return -1;
 }
 
-// static int virtio_camera_get_formats_number(int camera_id)
-// {
-// 	pr_info("virtio_camera %s Enter\n", __func__);
-// 	if (camera_devs[camera_id].ops.get_formats_number)
-// 		return camera_devs[camera_id].ops.get_formats_number(camera_id);
-// 	else
-// 		return -1;
-// }
+static int virtio_camera_get_formats_number(int camera_id)
+{
+	pr_info("virtio_camera %s Enter\n", __func__);
+	if (camera_devs[camera_id].ops.get_formats_number)
+		return camera_devs[camera_id].ops.get_formats_number(camera_id);
+	else
+		return -1;
+}
 
-// static int virtio_camera_get_formats(int camera_id,stream_t* p,int* streams_number)
-// {
-// 	pr_info("virtio_camera %s Enter\n",__func__);
-// 	if (camera_devs[camera_id].ops.get_formats)
-// 		return camera_devs[camera_id].ops.get_formats(camera_id,p,streams_number);
-// 	else
-// 		return -1;
-// }
+static int virtio_camera_get_formats(int camera_id, stream_t *p, int *streams_number)
+{
+	pr_info("virtio_camera %s Enter\n", __func__);
+	if (camera_devs[camera_id].ops.get_formats)
+		return camera_devs[camera_id].ops.get_formats(camera_id, p, streams_number);
+	else
+		return -1;
+}
 
 static int virtio_camera_wrapper_config_streams(int camera_id)
 {
@@ -200,7 +176,7 @@ static int virtio_camera_wrapper_config_streams(int camera_id)
 
 	pr_info("virtio_camera %s Enter \n", __func__);
 
-	if (p->type == HAL_INTERFACE) {
+	if (p->type != V4L2_INTERFACE) {
 		if (p->ops.config_streams != NULL)
 			ret = p->ops.config_streams(camera_id, stream_list);
 	} else {
@@ -361,7 +337,7 @@ static int get_vq_index(struct virtio_camera *vcamera, struct virtio_vq_info *vq
 {
 	int i;
 
-	for (i = 0; i < VIRTIO_CAMERA_NUMQ; i++) {
+	for (i = 0; i < MAX_VIRTIO_CAMERA_NUMQ; i++) {
 		if (vq == &vcamera->queues[i])
 			return i;
 	}
@@ -376,7 +352,7 @@ static void virtio_camera_notify(void *vdev, struct virtio_vq_info *vq)
 
 	// pr_err("virtio_camera_notify get the vq index is %d\n", index);
 
-	if ((index < 0) || (index > VIRTIO_CAMERA_NUMQ))
+	if ((index < 0) || (index > MAX_VIRTIO_CAMERA_NUMQ))
 		return;
 
 	if (!vq_has_descs(vq))
@@ -494,7 +470,7 @@ static void virtio_camera_set_status(void *vdev, uint64_t status) { pr_info("vir
 
 static struct virtio_ops virtio_camera_ops = {
     "virtio_camera",                     /* our name */
-    VIRTIO_CAMERA_NUMQ,                  /* we support one virtqueue */
+    MAX_VIRTIO_CAMERA_NUMQ,              /* we support one virtqueue */
     sizeof(struct virtio_camera_config), /* config reg size */
     virtio_camera_reset,                 /* reset */
     virtio_camera_notify,                /* device-wide qnotify */
@@ -549,26 +525,25 @@ static void *virtio_dqbuf_thread(void *data)
 				{
 					struct timespec ts;
 
-					clock_gettime(CLOCK_REALTIME,&ts);
+					clock_gettime(CLOCK_REALTIME, &ts);
 					p->buffer.timestamp = ts.tv_sec * 1e9 + ts.tv_nsec;
-					pr_info("virtio camera test timestamp %lld\n",p->buffer.timestamp);
+					pr_info("virtio camera test timestamp %lld\n", p->buffer.timestamp);
 				}
 #endif
 #ifdef DUMP_IMG
-				if (i == 100)
-				{
+				if (i == 100) {
 					char camera_name[128];
-					sprintf(camera_name,"virtio_camera_id_%d.yuv",i);
-					FILE* fp = fopen(camera_name,"w");
+					sprintf(camera_name, "virtio_camera_id_%d.yuv", i);
+					FILE *fp = fopen(camera_name, "w");
 					fwrite(buf->addr,
-						1,
-						camera_devs[camera_id].streams[0].width *
-						camera_devs[camera_id].streams[0].height * 2,
-						fp);
+					       1,
+					       camera_devs[camera_id].streams[0].width *
+					           camera_devs[camera_id].streams[0].height * 2,
+					       fp);
 					fclose(fp);
 				}
 #endif
-				vq_relchain(vq,p->idx,sizeof(struct virtio_camera_request));
+				vq_relchain(vq, p->idx, sizeof(struct virtio_camera_request));
 				vq_endchains(vq, 0);
 
 				STAILQ_REMOVE(&camera_devs[camera_id].capture_list, p, capture_buffer, link);
@@ -716,26 +691,37 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 		// pr_info("virtio_camera VIRTIO_CAMERA_ENUM_FORMAT camera_id %d req->index %d\n",
 		// 	camera_id,req->index);
 		if (req->index == 0) {
-			num_streams = 1; // virtio_camera_get_formats_number(camera_id);
-			camera_devs[camera_id].supported_stream_list.num_streams = num_streams;
-			camera_devs[camera_id].supported_stream_list.streams = malloc(sizeof(stream_t) * num_streams);
-			// virtio_camera_get_formats(
-			//     camera_id, camera_devs[camera_id].supported_stream_list.streams, &num_streams);
-			camera_devs[camera_id].supported_stream_list.streams->width =
-			    camera_devs[camera_id].streams[0].width;
-			camera_devs[camera_id].supported_stream_list.streams->height =
-			    camera_devs[camera_id].streams[0].height;
-			camera_devs[camera_id].supported_stream_list.streams->format = V4L2_PIX_FMT_UYVY;
+			if (camera_devs[camera_id].type == HAL_INTERFACE) {
+				num_streams = virtio_camera_get_formats_number(camera_id);
+				camera_devs[camera_id].supported_stream_list.num_streams = num_streams;
+				camera_devs[camera_id].supported_stream_list.streams =
+				    malloc(sizeof(stream_t) * num_streams);
+				virtio_camera_get_formats(
+				    camera_id, camera_devs[camera_id].supported_stream_list.streams, &num_streams);
+				camera_devs[camera_id].supported_stream_list.operation_mode = 2;
+			} else {
+				num_streams = 1;
+				camera_devs[camera_id].supported_stream_list.num_streams = num_streams;
+				camera_devs[camera_id].supported_stream_list.streams =
+				    malloc(sizeof(stream_t) * num_streams);
+				camera_devs[camera_id].supported_stream_list.streams->width =
+				    camera_devs[camera_id].streams[0].width;
+				camera_devs[camera_id].supported_stream_list.streams->height =
+				    camera_devs[camera_id].streams[0].height;
+				camera_devs[camera_id].supported_stream_list.streams->format = V4L2_PIX_FMT_UYVY;
+			}
 			camera_devs[camera_id].supported_stream_list.operation_mode = 2;
-
 		} else if (req->index >= camera_devs[camera_id].supported_stream_list.num_streams) {
 			response->type = VIRTIO_CAMERA_RET_INVALID;
 			pr_info("virtio_camera VIRTIO_CAMERA_ENUM_FORMAT faild\n");
 			break;
 		}
 		format_desc.index = req->index;
-		format_desc.pixelformat = V4L2_PIX_FMT_UYVY;
-		// camera_devs[camera_id].supported_stream_list.streams[req->index].format;
+		if (camera_devs[camera_id].type == HAL_INTERFACE) {
+			format_desc.pixelformat = camera_devs[camera_id].supported_stream_list.streams[req->index].format;
+		} else {
+			format_desc.pixelformat = V4L2_PIX_FMT_UYVY;
+		}
 		format_desc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		response->u.format.pixel_format_type = format_desc.pixelformat;
 
@@ -744,16 +730,24 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 		// pr_info("virtio_camera VIRTIO_CAMERA_ENUM_SIZE camera_id %d req->index %d\n",
 		// 	camera_id, req->index);
 		if (camera_devs[camera_id].supported_stream_list.streams == NULL) {
-			num_streams = 1; // virtio_camera_get_formats_number(camera_id);
-			camera_devs[camera_id].supported_stream_list.num_streams = num_streams;
-			camera_devs[camera_id].supported_stream_list.streams = malloc(sizeof(stream_t) * num_streams);
-			//  virtio_camera_get_formats(camera_id,camera_devs[camera_id].supported_stream_list.streams,
-			// 			   &num_streams);
-			camera_devs[camera_id].supported_stream_list.streams->width =
-			    camera_devs[camera_id].streams[0].width;
-			camera_devs[camera_id].supported_stream_list.streams->height =
-			    camera_devs[camera_id].streams[0].height;
-			camera_devs[camera_id].supported_stream_list.streams->format = V4L2_PIX_FMT_UYVY;
+			if (camera_devs[camera_id].type == HAL_INTERFACE) {
+				num_streams = virtio_camera_get_formats_number(camera_id);
+				camera_devs[camera_id].supported_stream_list.num_streams = num_streams;
+				camera_devs[camera_id].supported_stream_list.streams =
+				    malloc(sizeof(stream_t) * num_streams);
+				 virtio_camera_get_formats(camera_id,camera_devs[camera_id].supported_stream_list.streams,
+							   &num_streams);
+			} else {
+				num_streams = 1;
+				camera_devs[camera_id].supported_stream_list.num_streams = num_streams;
+				camera_devs[camera_id].supported_stream_list.streams =
+				    malloc(sizeof(stream_t) * num_streams);
+				camera_devs[camera_id].supported_stream_list.streams->width =
+				    camera_devs[camera_id].streams[0].width;
+				camera_devs[camera_id].supported_stream_list.streams->height =
+				    camera_devs[camera_id].streams[0].height;
+				camera_devs[camera_id].supported_stream_list.streams->format = V4L2_PIX_FMT_UYVY;
+			}
 			camera_devs[camera_id].supported_stream_list.operation_mode = 2;
 		} else if (req->index >= camera_devs[camera_id].supported_stream_list.num_streams) {
 			response->type = VIRTIO_CAMERA_RET_INVALID;
@@ -832,7 +826,7 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 		{
 			camera_buffer_t tmp;
 			tmp.index = camera_devs[camera_id].buffer_count;
-			g_hal_ops.allocate_memory(camera_id, &tmp);
+			camera_devs[camera_id].ops.allocate_memory(camera_id, &tmp);
 		}
 		camera_devs[camera_id].buffer_count++;
 
@@ -1060,9 +1054,6 @@ static void virtio_camera_dev_init(int camera_id)
 	stream_t input_config;
 
 	pr_info("virtio_camera camera %d type = %d\n", camera_id, camera_devs[camera_id].type);
-	if (camera_devs[camera_id].type == HAL_INTERFACE) {
-		camera_devs[camera_id].ops = g_hal_ops;
-	}
 
 	ret = virtio_camera_hal_init(camera_id);
 	pr_info("virtio_camera virtio_camera_hal_init ret = %d\n", ret);
@@ -1125,6 +1116,46 @@ static int unmap_buffer(int camera_id, int buffer_index)
 	return ret;
 }
 
+static int virtio_camera_get_config(char *config_lib, char *vm_name)
+{
+	int ret = 0;
+	char *lib;
+
+	if (config_lib) {
+		lib = config_lib;
+	} else {
+		lib = "/usr/lib/camera_config.so"; // default value
+	}
+
+	ret = fill_config_ops(lib, &g_camera_config_handle, &g_camera_config_ops);
+	if (ret == 0) {
+		if (g_camera_config_ops.get_client_cameras_number)
+			g_camera_number = g_camera_config_ops.get_client_cameras_number(vm_name);
+
+		for (int camera_id = 0; camera_id < g_camera_number; camera_id++) {
+			camera_config_info info = {0};
+			physical_camera_info_c p_info = {0};
+
+			if (g_camera_config_ops.get_client_camera_config)
+				g_camera_config_ops.get_client_camera_config(vm_name, &info, camera_id);
+
+			p_info.id = info.physical_id;
+
+			if (g_camera_config_ops.get_physical_camera_config)
+				g_camera_config_ops.get_physical_camera_config(&p_info);
+
+			camera_devs[camera_id].id = p_info.id;
+			memcpy(camera_devs[camera_id].name, p_info.sensor_name, strlen(p_info.sensor_name));
+			camera_devs[camera_id].streams[0].width = p_info.width;
+			camera_devs[camera_id].streams[0].height = p_info.height;
+			camera_devs[camera_id].type = p_info.type;
+			fill_hal_ops(p_info.driver, &camera_devs[camera_id].hal_handle, &camera_devs[camera_id].ops);
+		}
+	}
+
+	return ret;
+}
+
 static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
 	struct virtio_camera *vcamera;
@@ -1141,18 +1172,21 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 		pr_err(("vcamera init: fail to alloc virtio_camera\n"));
 		return -1;
 	}
+
 	if (opts != NULL) {
 		opt = opts;
-		if (!strncmp(opt, "vhal", 4)) {
+		if (!strncmp(opt, "configlib", 9)) {
 			(void)strsep(&opt, "=");
 			if (opt != NULL) {
-				if (fill_hal_ops(opt) != 0)
-					pr_err("vcamera init: fill_hal_ops faild\n");
-				else
-					ret = 0;
+				pr_info("vcamera init: the camera config library is %s\n", opt);
 			}
+		} else {
+			opt = NULL;
 		}
 	}
+
+	ret = virtio_camera_get_config(opt, ctx->name);
+
 	if (ret != 0)
 		pr_err("vcamera init: have no config of vHAL\n");
 
@@ -1173,7 +1207,7 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 	vcamera->base.mtx = &vcamera->vcamera_mutex;
 	vcamera->base.device_caps = VIRTIO_CAMERA_S_HOSTCAPS;
 
-	for (i = 0; i < VIRTIO_CAMERA_NUMQ; i++) {
+	for (i = 0; i < MAX_VIRTIO_CAMERA_NUMQ; i++) {
 		char thread_name[128];
 		vcamera->queues[i].qsize = VIRTIO_CAMERA_RINGSZ;
 		vcamera->queues[i].notify = virtio_camera_notify;
@@ -1190,7 +1224,7 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 
 		sprintf(thread_name, "acrn_virtio_camera_%d", i);
 		pthread_setname_np(vcamera->vcamera_tid[i], thread_name);
-		virtio_camera_set_client_name(i,ctx->name, strlen(ctx->name));
+		virtio_camera_set_client_name(i, ctx->name, strlen(ctx->name));
 		virtio_camera_dev_init(i);
 		ret = pthread_mutex_init(&camera_devs[i].capture_list_mutex, &attr);
 		if (ret)
@@ -1199,7 +1233,7 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 	}
 
 	memcpy(vcamera->config.name, "hello_camera\0", 14);
-	vcamera->config.number_of_virtual_camera = VIRTIO_CAMERA_NUMQ;
+	vcamera->config.number_of_virtual_camera = MAX_VIRTIO_CAMERA_NUMQ;
 
 	/* initialize config space */
 	pci_set_cfgdata16(dev, PCIR_DEVICE, 0x1040 + VIRTIO_TYPE_CAMERA);
@@ -1250,7 +1284,7 @@ static void virtio_camera_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *
 		vcamera = (struct virtio_camera *)dev->arg;
 		vcamera->closing = 1;
 
-		for (index = 0; index < VIRTIO_CAMERA_NUMQ; index++) {
+		for (index = 0; index < MAX_VIRTIO_CAMERA_NUMQ; index++) {
 			if (NULL != camera_devs[index].supported_stream_list.streams) {
 				free(camera_devs[index].supported_stream_list.streams);
 				camera_devs[index].supported_stream_list.streams = NULL;
@@ -1260,11 +1294,14 @@ static void virtio_camera_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *
 			pthread_mutex_destroy(&vcamera->vq_related[index].req_mutex);
 		}
 
+		for (index = 0; index < g_camera_number; index++) {
+			close_hal_handle(camera_devs[index].hal_handle, &camera_devs[index].ops);
+		}
+
 		pthread_mutex_destroy(&vcamera->vcamera_mutex);
 		free(vcamera);
 		dev->arg = NULL;
 	}
-	close_hal_handle();
 }
 
 struct pci_vdev_ops pci_ops_virtio_camera = {.class_name = "virtio-camera",
