@@ -1,9 +1,9 @@
 CFLAGS = -fPIC
-
 CAMERA_MANAGER = camera_manager.bin
 CAMERA_CLIENT = camera_client.so
 CAMERA_CONFIG = camera_config.so
 CAMERA_CONFIG_TEST = camera_config_test.bin
+CFLAGS += -I../../library/include
 
 all: $(CAMERA_MANAGER) $(CAMERA_CLIENT) $(CAMERA_CONFIG) $(CAMERA_CONFIG_TEST)
 
