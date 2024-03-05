@@ -316,7 +316,7 @@ def generate_for_one_vm(board_etree, hv_scenario_etree, vm_scenario_etree, vm_id
         vbdf = eval_xpath(ivshmem, f".//VBDF/text()")
         slot = get_slot_by_vbdf(vbdf)
         func = get_function_by_vbdf(vbdf)
-        script.add_virtual_device(f"ivshmem", str(slot) + ":" + str(func), options=f"hv:/{ivshmem.find('NAME').text},{ivshmem.find('IVSHMEM_SIZE').text}")
+        script.add_virtual_device(f"ivshmem", str(slot) + ":" + str(func), options=f"hv:/{ivshmem.find('NAME').text},{ivshmem.find('IVSHMEM_SIZE').text},{ivshmem.find('IVSHMEM_REGION_ID').text}")
 
     if eval_xpath(vm_scenario_etree, ".//console_vuart/text()") == "PCI":
         script.add_virtual_device("uart", options="vuart_idx:0")
