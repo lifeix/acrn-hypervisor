@@ -674,6 +674,8 @@ camera_deserializer *create_deserializer(int deserializer_id, const char *camera
 			p = new camera_deserializer_v4l2(deserializer_id, camera_lib);
 			break;
 		case HAL_INTERFACE:
+		case PROXY_INTERFACE:
+		case SUPER_FRAME_INTERFACE:
 			p = new camera_deserializer_hal(deserializer_id, camera_lib);
 			break;
 		default:

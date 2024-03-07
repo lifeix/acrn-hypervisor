@@ -74,6 +74,10 @@ static interface_type get_driver_type(std::string stype)
 		type = V4L2_INTERFACE;
 	} else if (stype == "HAL_INTERFACE") {
 		type = HAL_INTERFACE;
+	}  else if (stype == "PROXY_INTERFACE") {
+		type = PROXY_INTERFACE;
+	}  else if (stype == "SUPER_FRAME_INTERFACE") {
+		type = SUPER_FRAME_INTERFACE;
 	} else {
 		type = V4L2_INTERFACE;
 	}

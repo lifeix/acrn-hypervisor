@@ -16,6 +16,8 @@ const int MAX_CAMERA_BUFFER = 6;
 enum interface_type {
 	V4L2_INTERFACE = 0,
 	HAL_INTERFACE = 1,
+	PROXY_INTERFACE = 2,
+	SUPER_FRAME_INTERFACE = 3,
 };
 
 struct camera_ops {
