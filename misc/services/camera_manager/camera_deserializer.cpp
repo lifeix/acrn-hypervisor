@@ -63,16 +63,19 @@ int camera_deserializer::open(int camera_id)
 
 int camera_deserializer::close(int camera_id)
 {
+	std::unique_lock<std::mutex> lock(m_camera_ids_mutex);
+
 	pr_info("camera_deserializer::%s Enter\n", __func__);
 
 	CHECK_CAMERA_ID(camera_id);
+	m_camera_ids.erase(camera_id);
+
+	stream_stop(camera_id);
 
 	if (m_ops.close != NULL) {
 		m_ops.close(camera_id);
 	}
 
-	std::unique_lock<std::mutex> lock(m_camera_ids_mutex);
-	m_camera_ids.erase(camera_id);
 	return 0;
 }
 
@@ -266,7 +269,7 @@ int camera_deserializer::get_stream_id(int camera_id, stream_t s)
  */
 int camera_deserializer::get_next_request(camera_request &request)
 {
-	pr_info("camera_deserializer::%s Enter, m_pending_request size is %d\n", __func__,m_pending_request.size());
+	pr_info("camera_deserializer::%s Enter, m_pending_request size is %ld\n", __func__, m_pending_request.size());
 	if (!m_pending_request.empty()) {
 		request = m_pending_request.front();
 
@@ -297,9 +300,15 @@ void camera_deserializer::process_request(camera_deserializer *p)
 		{
 			std::unique_lock<std::mutex> lock(p->m_request_mutex);
 
-			if (p->m_pending_request.empty())
-				p->m_request_signal.wait(lock);
-			pr_info("camera_deserializer::%s this %p begin process\n", __func__,p);
+			pr_info("camera_deserializer::%s this %p begin process\n", __func__, p);
+			if (p->m_pending_request.empty()) {
+				if (p->m_request_signal.wait_for(lock, std::chrono::milliseconds(200), [] {
+					    return false; }) == false) {
+					pr_info("camera_deserializer::%s this %p request timeout!\n",__func__, p);
+					/* Go to the end to check the camera list */
+					continue;
+				}
+			}
 			ret = p->get_next_request(request);
 		}
 
@@ -390,6 +399,7 @@ camera_deserializer_hal::~camera_deserializer_hal()
 	pr_info("camera_deserializer_hal::%s Enter\n", __func__);
 	m_process_thread->join();
 	delete m_process_thread;
+	m_process_thread =  nullptr;
 	close_hal_handle();
 };
 

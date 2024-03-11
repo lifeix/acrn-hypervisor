@@ -16,7 +16,7 @@ using namespace icamera;
 
 static std::shared_ptr<camera> get_camera_instance(int camera_id);
 
-std::shared_ptr<camera> g_handle[VIRTUAL_CAMERA_NUMQ] = {nullptr};
+std::weak_ptr<camera> g_handle[VIRTUAL_CAMERA_NUMQ];
 std::mutex g_handle_mutex;
 
 class virtual_cameras *g_camera_clients[VIRTUAL_CAMERA_NUMQ];
@@ -52,13 +52,15 @@ virtual_cameras::virtual_cameras(int client_id,int socket) : m_index(0),m_state(
 
 virtual_cameras::~virtual_cameras()
 {
-	pr_info("virtual_cameras::~virtual_cameras");
+	std::lock_guard<std::mutex> lock(g_handle_mutex);
 
+	pr_info("virtual_cameras::~virtual_cameras");
 	for (int camera_id = 0; camera_id < m_camera_number; camera_id++) {
 		if ((m_cameras_info[camera_id].instance != nullptr) && (m_cameras_info[camera_id].state == STREAM_ON)) {
 			m_cameras_info[camera_id].instance->remove_consumer(this);
 			m_cameras_info[camera_id].state = STREAM_OFF;
 			release_camera_buffer(camera_id);
+			m_cameras_info[camera_id].instance.reset();
 		}
 	}
 
@@ -218,14 +220,29 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 	case VIRTUAL_CAMERA_CREATE_BUFFER: // TODO, align HAL and V4L2 interface
 		if (m_cameras_info[camera_id].instance == nullptr)
 		{
-			int i = camera_id;
-			m_cameras_info[i].instance = get_camera_instance(m_cameras_info[i].id);
-			m_cameras_info[i].state = STREAM_OFF;
-			m_cameras_info[i].buffers = nullptr;
+			std::lock_guard<std::mutex> lock(g_handle_mutex);
+			if (g_handle[camera_id].expired()) {
+				std::shared_ptr<camera> sp(new camera(camera_id));
+				m_cameras_info[camera_id].instance = sp;
+				g_handle[camera_id] = m_cameras_info[camera_id].instance;
+				pr_info("Camera Manager create instance for camera %d use_count %ld \n",
+				        camera_id,
+				        m_cameras_info[camera_id].instance.use_count());
+			} else {
+				m_cameras_info[camera_id].instance = g_handle[camera_id].lock();
+				pr_info("Camera Manager get the existed instance for camera %d use_count %ld \n",
+				        camera_id,
+				        m_cameras_info[camera_id].instance.use_count());
+			}
+			pr_info("Camera Manager after camera %d create instance  use_count = %ld \n",
+			        camera_id,
+			        m_cameras_info[camera_id].instance.use_count());
+			m_cameras_info[camera_id].state = STREAM_OFF;
+			m_cameras_info[camera_id].buffers = nullptr;
 			pr_info("m_camera_ids[%d] physical id is %d, register_consumer, %p set buffers to NULL\n",
-				i,
-				m_cameras_info[i].id,
-				this);
+			        camera_id,
+			        m_cameras_info[camera_id].id,
+			        this);
 		}
 
 		if (m_cameras_info[camera_id].buffers == nullptr)
@@ -326,10 +343,21 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 		m_cameras_info[camera_id].state = STREAM_ON;
 		break;
 	case VIRTUAL_CAMERA_STREAM_OFF:
-		m_cameras_info[camera_id].instance->remove_consumer(this);
-		m_cameras_info[camera_id].state = STREAM_OFF;
-		release_camera_buffer(camera_id);
+		if (m_cameras_info[camera_id].instance) {
+			std::lock_guard<std::mutex> lock(g_handle_mutex);
 
+			m_cameras_info[camera_id].instance->remove_consumer(this);
+			m_cameras_info[camera_id].state = STREAM_OFF;
+			release_camera_buffer(camera_id);
+			m_cameras_info[camera_id].instance.reset();
+			if (g_handle[camera_id].expired()) {
+				pr_info("Camera Manager reset instance for camera %d use_count 0\n", camera_id);
+			} else {
+				pr_info("Camera Manager reset instance for camera %d use_count %ld\n",
+				        camera_id,
+				        g_handle[camera_id].lock().use_count());
+			}
+		}
 		pr_info("Camera Manager VIRTUAL_CAMERA_STREAM_OFF \n");
 		break;
 	case VIRTUAL_CAMERA_OPEN:
@@ -393,37 +421,6 @@ int virtual_cameras::handle_data(camera_data *pdata)
 		}
 	}
 	return 0;
-}
-
-static std::shared_ptr<camera> get_camera_instance(int camera_id)
-{
-	std::unique_lock<std::mutex> lock(g_handle_mutex);
-
-	if ((camera_id >= 0) && (camera_id < VIRTUAL_CAMERA_NUMQ)) {
-		pr_info("Camera Manager create instance\n");
-		if (!g_handle[camera_id]) {
-			std::shared_ptr<camera> sp(new camera(camera_id));
-			g_handle[camera_id] = sp;
-			pr_info("Camera Manager create instance for camera %d\n", camera_id);
-		}
-		return g_handle[camera_id];
-	} else {
-		return nullptr;
-	}
-}
-
-static void remove_camera_instance(int camera_id)
-{
-	std::unique_lock<std::mutex> lock(g_handle_mutex);
-
-	if ((camera_id >= 0) && (camera_id < VIRTUAL_CAMERA_NUMQ)) {
-		pr_info("Camera Manager remove instance\n");
-		if (!g_handle[camera_id]) {
-			pr_info("Camera Manager remove instance for camera %d\n", camera_id);
-			g_handle[camera_id].reset();
-			g_handle[camera_id] = nullptr;
-		}
-	}
 }
 
 int camera_manager::client_control(camera_client_state_request &req)
@@ -572,9 +569,6 @@ int main(int argc, char *argv[])
 			camera_client_count++;
 		}
 	}
-
-	for (int i = 0; i < VIRTUAL_CAMERA_NUMQ; i++)
-		remove_camera_instance(i);
 
 	close(server_socket);
 	pr_info("Camera Manager Exit\n");
