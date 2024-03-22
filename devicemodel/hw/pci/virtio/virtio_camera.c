@@ -300,13 +300,19 @@ static int get_frame_size(int width, int height, int format)
 {
 	int frame_size;
 
+	/*FIXME:
+	  In IPU6 HAL, the frame size must be one row larger than the actual size to store frame information.
+	  Before this issue is resolved, we need to add one row in a hardcoded manner.
+	  chenli.wei@intel.com
+	*/
+
 	switch (format) {
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
-		frame_size = get_stride_size(width, format) * height * 3 / 2;
+		frame_size = get_stride_size(width, format) * (height + 1) * 3 / 2;
 		break;
 	default:
-		frame_size = get_stride_size(width, format) * height;
+		frame_size = get_stride_size(width, format) * (height + 1);
 		break;
 	}
 
@@ -499,14 +505,16 @@ static void *virtio_dqbuf_thread(void *data)
 
 		pthread_mutex_lock(&camera_devs[camera_id].capture_list_mutex);
 		if (!STAILQ_EMPTY(&camera_devs[camera_id].capture_list)) {
-			pr_info("virtio_camera  call virtio_camera_stream_dqbuf\n");
+			struct capture_buffer *p = STAILQ_FIRST(&camera_devs[camera_id].capture_list);
 
+			buf->addr = p->remapped_addr;
+
+			pr_info("virtio_camera  call virtio_camera_stream_dqbuf\n");
 			ret = virtio_camera_stream_dqbuf(camera_id, stream_id, &buf, NULL);
 
 			pr_info("virtio_camera camera %d virtio_camera_stream_dqbuf ret = %d\n", camera_id, ret);
 			if (ret == 0 && buf->addr) {
 				// (fill req to virtqueue)
-				struct capture_buffer *p = STAILQ_FIRST(&camera_devs[camera_id].capture_list);
 				pr_info("vcamera %d DQ a buffer p->idx = %d pdata %p uuid %s\n",
 				        camera_id,
 				        p->idx,
@@ -823,7 +831,7 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 			pr_err("virtio_camera create buffer faild! \n");
 			response->type = VIRTIO_CAMERA_RET_OUT_OF_MEMORY;
 		}
-		{
+		if (camera_devs[camera_id].type == PROXY_INTERFACE) {
 			camera_buffer_t tmp;
 			tmp.index = camera_devs[camera_id].buffer_count;
 			camera_devs[camera_id].ops.allocate_memory(camera_id, &tmp);
