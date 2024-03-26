@@ -406,7 +406,7 @@ camera_deserializer_hal::~camera_deserializer_hal()
 struct camera_dev {
 	int id;
 	int fd;
-	char name[10];
+	char name[128];
 	uint8_t buffer_count;
 
 	interface_type type;
