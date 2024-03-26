@@ -201,7 +201,7 @@ typedef enum _type {
 struct camera_dev {
 	int id;
 	int fd;
-	char name[10];
+	char name[128];
 	interface_type type;
 	void *hal_handle;
 	struct camera_ops ops;
