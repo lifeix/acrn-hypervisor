@@ -343,7 +343,7 @@ static int get_vq_index(struct virtio_camera *vcamera, struct virtio_vq_info *vq
 {
 	int i;
 
-	for (i = 0; i < MAX_VIRTIO_CAMERA_NUMQ; i++) {
+	for (i = 0; i < g_camera_number; i++) {
 		if (vq == &vcamera->queues[i])
 			return i;
 	}
@@ -358,7 +358,7 @@ static void virtio_camera_notify(void *vdev, struct virtio_vq_info *vq)
 
 	// pr_err("virtio_camera_notify get the vq index is %d\n", index);
 
-	if ((index < 0) || (index > MAX_VIRTIO_CAMERA_NUMQ))
+	if ((index < 0) || (index > g_camera_number))
 		return;
 
 	if (!vq_has_descs(vq))
@@ -1211,11 +1211,12 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 	if (ret)
 		pr_err("vcamera init: mutexattr_settype fail, erro %d\n", ret);
 
+	virtio_camera_ops.nvq = g_camera_number;
 	virtio_linkup(&vcamera->base, &virtio_camera_ops, vcamera, dev, vcamera->queues, BACKEND_VBSU);
 	vcamera->base.mtx = &vcamera->vcamera_mutex;
 	vcamera->base.device_caps = VIRTIO_CAMERA_S_HOSTCAPS;
 
-	for (i = 0; i < MAX_VIRTIO_CAMERA_NUMQ; i++) {
+	for (i = 0; i < g_camera_number; i++) {
 		char thread_name[128];
 		vcamera->queues[i].qsize = VIRTIO_CAMERA_RINGSZ;
 		vcamera->queues[i].notify = virtio_camera_notify;
@@ -1241,7 +1242,7 @@ static int virtio_camera_init(struct vmctx *ctx, struct pci_vdev *dev, char *opt
 	}
 
 	memcpy(vcamera->config.name, "hello_camera\0", 14);
-	vcamera->config.number_of_virtual_camera = MAX_VIRTIO_CAMERA_NUMQ;
+	vcamera->config.number_of_virtual_camera = g_camera_number;
 
 	/* initialize config space */
 	pci_set_cfgdata16(dev, PCIR_DEVICE, 0x1040 + VIRTIO_TYPE_CAMERA);
@@ -1292,7 +1293,7 @@ static void virtio_camera_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *
 		vcamera = (struct virtio_camera *)dev->arg;
 		vcamera->closing = 1;
 
-		for (index = 0; index < MAX_VIRTIO_CAMERA_NUMQ; index++) {
+		for (index = 0; index < g_camera_number; index++) {
 			if (NULL != camera_devs[index].supported_stream_list.streams) {
 				free(camera_devs[index].supported_stream_list.streams);
 				camera_devs[index].supported_stream_list.streams = NULL;
