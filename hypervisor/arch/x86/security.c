@@ -214,9 +214,21 @@ uint64_t get_random_value(void)
 #ifdef STACK_PROTECTOR
 void set_fs_base(void)
 {
+	int retry;
 	struct stack_canary *psc = &get_cpu_var(stk_canary);
 
-	psc->canary = get_random_value();
+	/*
+	 *  1) Restore canary value on given pCPU if it has been configured.
+	 *  2) Do retry in case 'get_random_value()' returns 0.
+	 */
+	for (retry = 0; (retry < 5) && (psc->canary == 0UL); retry++) {
+		psc->canary = get_random_value();
+	}
+
+	if (psc->canary == 0UL) {
+		panic("Failed to setup stack protector!");
+	}
+
 	msr_write(MSR_IA32_FS_BASE, (uint64_t)psc);
 }
 #endif
