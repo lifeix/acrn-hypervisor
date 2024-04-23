@@ -10,6 +10,7 @@
 #define __VIRTIO_CAMERA_H__
 
 #include "vcamhal_type.h"
+#include "vICamera.h"
 
 #define MAX_VIRTIO_CAMERA_NUMQ 8
 // set the specific ID for frontend to recongnise
@@ -164,41 +165,6 @@ struct capture_buffer {
 	struct virtio_camera_request *response;
 	char reserve[2];
 };
-
-struct camera_ops {
-	int (*get_camera_info)(int camera_id, void *data);
-
-	int (*open)(int camera_id);
-	void (*close)(int camera_id);
-
-	int (*allocate_memory)(int camera_id, camera_buffer_t *buffer);
-
-	int (*config_streams)(int camera_id, stream_config_t *stream_list);
-	int (*start_stream)(int camera_id);
-	int (*stop_stream)(int camera_id);
-
-	int (*stream_qbuf)(int camera_id, camera_buffer_t **buffer, int num_buffers, void *settings);
-	int (*stream_dqbuf)(int camera_id, int stream_id, camera_buffer_t **buffer, void *settings);
-
-	int (*hal_init)();
-	int (*hal_deinit)();
-	int (*config_sensor_input)(int camera_id, const stream_t *inputConfig);
-	int (*get_frame_size)(int camera_id, int format, int width, int height, int field, int *bpp);
-	int (*set_exposure)(int camera_id, int date);
-	int (*set_parameters)(int camera_id, void *data);
-	int (*get_parameters)(int camera_id, void *data, int64_t sequence);
-	int (*req_bufs)(int camera_id);
-	int (*get_formats_number)(int camera_id);
-	int (*get_formats)(int camera_id, stream_t* p, int* streams_number);
-	int (*set_client_name)(char *name, int size);
-};
-
-typedef enum _type {
-	V4L2_INTERFACE = 0,
-	HAL_INTERFACE = 1,
-	PROXY_INTERFACE = 2,
-	SUPER_FRAME_INTERFACE = 3,
-} interface_type;
 
 struct camera_dev {
 	int id;
