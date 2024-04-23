@@ -164,6 +164,7 @@ SRCS += hw/pci/virtio/virtio_rpmb.c
 SRCS += hw/pci/virtio/virtio_gpio.c
 SRCS += hw/pci/virtio/virtio_gpu.c
 SRCS += hw/pci/virtio/vhost_vsock.c
+SRCS += hw/pci/virtio/virtio_be.c
 SRCS += hw/pci/irq.c
 SRCS += hw/pci/uart.c
 SRCS += hw/pci/gvt.c
