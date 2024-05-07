@@ -17,6 +17,47 @@ virtual_camera_request g_msg;
 pthread_mutex_t g_camera_client_req_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t g_camera_client_req_cond = PTHREAD_COND_INITIALIZER;
 
+static char g_client_name[128] = {'\0'};
+static int g_camera_number = 0;
+static std::mutex g_camera_number_mutex;
+static std::array<camera_info, g_max_camera_number> g_cameras_info;
+
+int init_camera_list(char *client_name)
+{
+	camera_client_info client_info = {0};
+	client_info.client_id = 1;
+
+	client_info.client_name = client_name;
+	get_virtual_cameras_config(client_info);
+
+	g_camera_number = client_info.camera_infos.size();
+	pr_info("%s g_camera_number is %d \n", client_info.client_name.c_str(), g_camera_number);
+
+	for (int i = 0; i < client_info.camera_infos.size(); i++) {
+		int index = client_info.camera_infos[i].logical_id;
+		g_cameras_info[index].id = client_info.camera_infos[i].physical_id;
+		pr_info("%s Camera[%d] physical id is %d, shared = %d\n",
+		        client_info.client_name.c_str(),
+		        client_info.camera_infos[i].logical_id,
+		        client_info.camera_infos[i].physical_id,
+		        client_info.camera_infos[i].shared);
+	}
+
+	return 0;
+}
+
+#define CHECK_CAMERA_ID(camera_logical_id)                                  \
+	if ((camera_logical_id < 0) || (camera_logical_id > g_camera_number)) { \
+		pr_info("Invalide camera id : %d\n", camera_logical_id);            \
+		return -1;                                                          \
+	}
+
+int get_physical_id(int camera_logical_id)
+{
+	CHECK_CAMERA_ID(camera_logical_id);
+	return g_cameras_info[camera_logical_id].id;
+}
+
 /**
  * send msg to camera daemon
  *
@@ -148,7 +189,8 @@ int camera_client::dq_buffer(struct virtual_camera_request* req)
 
 int camera_client::create_buffer()
 {
-	std::string memory_name = "camera_daemon_mem_" + std::to_string(m_camera_id);
+	int camera_id = get_physical_id(m_camera_id);
+	std::string memory_name = "camera_daemon_mem_" + std::to_string(camera_id);
 
 	m_memory_size = ALIGN_UP(m_stream.size,getpagesize()) * g_buffer_count;
 	m_fd = shm_open(memory_name.c_str(),O_RDWR | O_CREAT,0666);
@@ -401,11 +443,6 @@ int camera_client_set_client_name(char *name)
 	return send_msg(g_socket, &req);
 }
 
-int get_physical_id(int camera_logical_id)
-{
-	return camera_logical_id; // TODO, this should get from a xml or other script
-}
-
 /**
  * Return the number of cameras
  * This should be called before any other calls
@@ -415,10 +452,16 @@ int get_physical_id(int camera_logical_id)
  **/
 int vcamera_get_number_of_cameras()
 {
-	return 2; // TODO, this should get from a xml or other script
+	if (g_camera_number == 0) {
+		auto_lock l(g_camera_number_mutex);
+		if (g_camera_number == 0) {
+			init_camera_list(g_client_name);
+		}
+	}
+
+	return g_camera_number;
 }
 
-char g_client_name[128] = {'\0'};
 /**
  * set vm name
  *
@@ -459,9 +502,11 @@ int vcamera_hal_init()
 			};
 		}
 
+		int camera_number = vcamera_get_number_of_cameras();
+
 		camera_client_set_client_name(g_client_name);
 
-		for (int i = 0; i < g_max_camera_number; i++) {
+		for (int i = 0; i < camera_number; i++) {
 			g_camera_clients[i] = new camera_client(i);
 		}
 		g_inited = 1;
@@ -497,14 +542,14 @@ int vcamera_hal_deinit()
  *
  * @return error code
  **/
-int vcamera_device_open(int camera_id) { return camera_client_device_open(get_physical_id(camera_id)); }
+int vcamera_device_open(int camera_id) { return camera_client_device_open(camera_id); }
 
 /**
  * Close camera device
  *
  * @param camera_id The ID that opened before
  **/
-void vcamera_device_close(int camera_id) { camera_client_device_close(get_physical_id(camera_id)); }
+void vcamera_device_close(int camera_id) { camera_client_device_close(camera_id); }
 
 /**
  * Add stream to device
@@ -517,7 +562,7 @@ void vcamera_device_close(int camera_id) { camera_client_device_close(get_physic
  **/
 int vcamera_device_config_streams(int camera_id, stream_config_t *stream_list)
 {
-	return camera_client_device_config_streams(get_physical_id(camera_id), stream_list);
+	return camera_client_device_config_streams(camera_id, stream_list);
 }
 
 /**
@@ -529,7 +574,7 @@ int vcamera_device_config_streams(int camera_id, stream_config_t *stream_list)
  *
  * @return error code
  **/
-int vcamera_device_start(int camera_id) { return camera_client_device_start(get_physical_id(camera_id)); }
+int vcamera_device_start(int camera_id) { return camera_client_device_start(camera_id); }
 
 /**
  * Stop device
@@ -540,7 +585,7 @@ int vcamera_device_start(int camera_id) { return camera_client_device_start(get_
  *
  * @return error code
  **/
-int vcamera_device_stop(int camera_id) { return camera_client_device_stop(get_physical_id(camera_id)); }
+int vcamera_device_stop(int camera_id) { return camera_client_device_stop(camera_id); }
 
 /**
  * Allocate memory for mmap & dma export io-mode
@@ -552,7 +597,7 @@ int vcamera_device_stop(int camera_id) { return camera_client_device_stop(get_ph
  **/
 int vcamera_device_allocate_memory(int camera_id, camera_buffer_t *buffer)
 {
-	return camera_client_device_allocate_memory(get_physical_id(camera_id), buffer);
+	return camera_client_device_allocate_memory(camera_id, buffer);
 }
 
 /**
