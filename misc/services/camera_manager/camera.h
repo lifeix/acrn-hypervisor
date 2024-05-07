@@ -27,13 +27,15 @@ public:
 	camera(int camera_id);
 	~camera();
 
-	int qbuf(camera_buffer_t** buffer,int num_buffers,camera_data_consumer* listener,void* settings = NULL);
+	int qbuf(camera_buffer_t** buffer,int num_buffers, camera_data_consumer_info* listener,void* settings = NULL);
 	int start();
 	int stream_add() { return -1; }
 	int stream_remove() { return -1; };
 	camera_buffer_t* get_buffers(int stream_id);
 	int get_frame_size(int format,int width,int height,int field,int* bpp);
-	virtual int handle_data(camera_data* pdata);
+	void register_consumer(camera_data_consumer_info *consumer);
+	void remove_consumer(camera_data_consumer_info *consumer);
+	virtual int handle_data(camera_data *pdata);
 	virtual void notify(camera_data* pdata);
 private:
 	int open();
@@ -48,7 +50,6 @@ private:
 	static std::shared_ptr<camera_deserializer> m_camera_deserializers[MAX_DESERIALIZER_NUMBER];
 	std::shared_ptr<camera_deserializer> get_deserializer(int camera_id,const char* camera_lib);
 	std::shared_ptr<camera_deserializer> m_camera_deserializer;
-
 	/* buffer number for each stream*/
 	int m_buffer_number;
 	camera_buffer_t m_buffers[MAX_STREAM_NUMBER][MAX_CAMERA_BUFFER];
@@ -70,7 +71,7 @@ private:
 		/**
 		 * using_clients: record all user who is using this buffer current now.
 		 */
-		std::set<camera_data_consumer*> using_clients;
+		std::set<camera_data_consumer_info*> using_clients;
 	};
 
 	/**
@@ -80,6 +81,7 @@ private:
 	 */
 	std::map<void*,camera_buffer_info> m_buffer_map;
 	std::mutex m_buffer_map_mutex;
+	std::mutex m_consumer_info_set_mutex;
 	stream_t m_streams[MAX_STREAM_NUMBER];
 	stream_config_t m_stream_list;
 	int m_camera_id;

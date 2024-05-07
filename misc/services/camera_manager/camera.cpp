@@ -167,9 +167,9 @@ int camera::streams_init()
 int camera::start()
 {
 	int ret = 0;
-	auto_lock l(m_consumers_mutex);
+	auto_lock l(m_consumer_info_set_mutex);
 	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
-	if (m_consumers.size() == 0) {
+	if (m_consumer_info_set.size() == 0) {
 		ret = m_camera_deserializer->stream_start(m_camera_id);
 	}
 
@@ -187,7 +187,7 @@ int camera::start()
  * @param settings, for metadata setting
  * @return int
  */
-int camera::qbuf(camera_buffer_t **buffer, int num_buffers, camera_data_consumer *consumer, void *settings)
+int camera::qbuf(camera_buffer_t **buffer, int num_buffers, camera_data_consumer_info *consumer, void *settings)
 {
 	int stream_id = 0;
 	auto_lock ll(m_buffer_map_mutex);
@@ -266,8 +266,8 @@ int camera::handle_data(camera_data *pdata)
 	pr_info("camera::handle_data Enter, call notify\n");
 	pr_info("camera::%s Enter, m_camera_id %d\n", __func__, m_camera_id);
 	{
-		auto_lock l(m_consumers_mutex);
-		if (m_consumers.size() == 0) {
+		auto_lock l(m_consumer_info_set_mutex);
+		if (m_consumer_info_set.size() == 0) {
 			camera_buffer_t *buffer = pdata->request.m_buffers;
 			camera_buffer_t **buffers = &buffer;
 			return m_camera_deserializer->stream_qbuf(
@@ -406,21 +406,21 @@ int camera::enqueue_all_buffers()
  */
 void camera::notify(camera_data *pdata)
 {
-	auto_lock l(m_consumers_mutex);
+	auto_lock l(m_consumer_info_set_mutex);
 	auto_lock ll(m_buffer_map_mutex);
 
-	pr_info("camera::notify Enter m_consumers size is %ld\n", m_consumers.size());
+	pr_info("camera::notify Enter m_consumer_info_set size is %ld\n", m_consumer_info_set.size());
 
-	for (auto consumer : m_consumers) {
+	for (auto consumer_info : m_consumer_info_set) {
 		pr_info("camera_data_provider::notify call handle_data\n");
-		consumer->handle_data(pdata);
+		consumer_info->consumer->handle_data(consumer_info->channel_id, pdata);
 	}
 
 	for (int i = 0; i < pdata->request.m_buffer_number; i++) {
 		auto it = m_buffer_map.find(pdata->request.m_buffers[i].addr);
 		if (it != m_buffer_map.end()) {
 			camera_buffer_info *p = &it->second;
-			p->using_clients = m_consumers;
+			p->using_clients = m_consumer_info_set;
 			pr_info("camera::notify send to p->using_clients size is %ld\n", p->using_clients.size());
 			p->state = USING;
 		} else {
@@ -439,3 +439,17 @@ int camera::get_frame_size(int format, int width, int height, int field, int *bp
 {
 	return m_camera_deserializer->get_frame_size(m_camera_id, format, width, height, field, bpp);
 }
+
+void camera::register_consumer(camera_data_consumer_info *consumer)
+{
+	auto_lock l(m_consumer_info_set_mutex);
+
+	m_consumer_info_set.insert(consumer);
+	pr_info("camera_data_provider::%s After insert m_consumer_info_set size is %ld\n", __func__, m_consumer_info_set.size());
+};
+
+void camera::remove_consumer(camera_data_consumer_info *consumer)
+{
+	auto_lock l(m_consumer_info_set_mutex);
+	m_consumer_info_set.erase(consumer);
+};

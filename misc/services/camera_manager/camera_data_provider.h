@@ -46,6 +46,16 @@ public:
 	camera_data_consumer() {};
 	virtual ~camera_data_consumer() {};
 	virtual int handle_data(camera_data* pdata);
+	virtual int handle_data(int camera_id, camera_data* pdata);
+};
+
+struct camera_data_consumer_info {
+	int channel_id;
+	camera_data_consumer* consumer;
+
+	bool operator<(const camera_data_consumer_info& other) const {
+		return channel_id < other.channel_id;
+	}
 };
 
 class camera_data_provider
@@ -58,5 +68,7 @@ public:
 	virtual void notify(camera_data* pdata);
 protected:
 	std::set<camera_data_consumer *> m_consumers;
+	std::set<camera_data_consumer_info *> m_consumer_info_set;
 	std::mutex m_consumers_mutex;
+	std::mutex m_consumer_info_set_mutex;
 };

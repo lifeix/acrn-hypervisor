@@ -32,3 +32,4 @@ void camera_data_provider::notify(camera_data *pdata)
 }
 
 int camera_data_consumer::handle_data(camera_data *pdata) { return 0; }
+int camera_data_consumer::handle_data(int camera_id, camera_data* pdata) { return 0; }

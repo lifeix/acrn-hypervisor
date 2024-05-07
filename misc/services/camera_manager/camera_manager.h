@@ -173,6 +173,8 @@ struct camera_client_state_request {
 struct camera_info {
 	/*The camera physical id*/
 	int id;
+	camera_data_consumer_info info;
+
 	camera_stream_state state;
 	camera_buffer_t* buffers;
 	std::shared_ptr<camera> instance;
@@ -184,13 +186,13 @@ public:
 	virtual_cameras(int client_id,int socket);
 	~virtual_cameras();
 
+	int init_camera_list(char* client_name);
 	int get_stream_id(struct virtual_camera_request* req);
-	int get_camera_list(char* client_name);
 	int get_virtual_camera_id(int physical_camera_id);
 	int virtual_cameras_get_config(char *client_name);
 
 protected:
-	virtual int handle_data(camera_data* pdata);
+	virtual int handle_data(int camera_id, camera_data *pdata);
 
 private:
 	/* socket handle to camera */
@@ -200,7 +202,7 @@ private:
 	int m_client_id;
 	static void* msg_thread(virtual_cameras* p);
 	int handle_msg(struct virtual_camera_request* req);
-	int fill_camera_request(virtual_camera_request* rsp,void* p);
+	int fill_camera_request(int camera_id, virtual_camera_request* rsp,void* p);
 	void release_camera_buffer(int camera_id);
 
 	camera_client_state m_state;

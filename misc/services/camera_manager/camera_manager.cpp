@@ -24,12 +24,14 @@ struct virtual_vq_related g_camera_client_related[VIRTUAL_CAMERA_NUMQ];
 
 int virtual_cameras::virtual_cameras_get_config(char *client_name)
 {
-	get_camera_list(client_name);
+	init_camera_list(client_name);
 
 	for (int i = 0; i < m_camera_number; i++) {
 		m_cameras_info[i].instance = nullptr;//(m_cameras_info[i].id);
 		m_cameras_info[i].state = STREAM_OFF;
 		m_cameras_info[i].buffers = nullptr;
+		m_cameras_info[i].info.consumer = this;
+		m_cameras_info[i].info.channel_id = i;
 		pr_info("m_camera_ids[%d] physical id is %d, register_consumer, %p set buffers to NULL\n",
 		        i,
 		        m_cameras_info[i].id,
@@ -57,7 +59,7 @@ virtual_cameras::~virtual_cameras()
 	pr_info("virtual_cameras::~virtual_cameras");
 	for (int camera_id = 0; camera_id < m_camera_number; camera_id++) {
 		if ((m_cameras_info[camera_id].instance != nullptr) && (m_cameras_info[camera_id].state == STREAM_ON)) {
-			m_cameras_info[camera_id].instance->remove_consumer(this);
+			m_cameras_info[camera_id].instance->remove_consumer(&m_cameras_info[camera_id].info);
 			m_cameras_info[camera_id].state = STREAM_OFF;
 			release_camera_buffer(camera_id);
 			m_cameras_info[camera_id].instance.reset();
@@ -67,7 +69,7 @@ virtual_cameras::~virtual_cameras()
 	delete m_thread;
 };
 
-int virtual_cameras::get_camera_list(char *client_name)
+int virtual_cameras::init_camera_list(char *client_name)
 {
 	camera_client_info client_info = {0};
 	client_info.client_id = 1;
@@ -160,7 +162,7 @@ void virtual_cameras::release_camera_buffer(int camera_id)
 		        i,
 		        m_cameras_info[camera_id].buffers[i].addr,
 		        m_cameras_info[camera_id].buffers[i].index);
-		m_cameras_info[camera_id].instance->qbuf(&buf, 1, this);
+		m_cameras_info[camera_id].instance->qbuf(&buf, 1, &m_cameras_info[camera_id].info);
 	}
 }
 
@@ -220,16 +222,18 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 	case VIRTUAL_CAMERA_CREATE_BUFFER: // TODO, align HAL and V4L2 interface
 		if (m_cameras_info[camera_id].instance == nullptr)
 		{
+			int physical_id = m_cameras_info[camera_id].id;
+
 			std::lock_guard<std::mutex> lock(g_handle_mutex);
-			if (g_handle[camera_id].expired()) {
-				std::shared_ptr<camera> sp(new camera(camera_id));
+			if (g_handle[physical_id].expired()) {
+				std::shared_ptr<camera> sp(new camera(physical_id));
 				m_cameras_info[camera_id].instance = sp;
-				g_handle[camera_id] = m_cameras_info[camera_id].instance;
+				g_handle[physical_id] = m_cameras_info[camera_id].instance;
 				pr_info("Camera Manager create instance for camera %d use_count %ld \n",
 				        camera_id,
 				        m_cameras_info[camera_id].instance.use_count());
 			} else {
-				m_cameras_info[camera_id].instance = g_handle[camera_id].lock();
+				m_cameras_info[camera_id].instance = g_handle[physical_id].lock();
 				pr_info("Camera Manager get the existed instance for camera %d use_count %ld \n",
 				        camera_id,
 				        m_cameras_info[camera_id].instance.use_count());
@@ -251,33 +255,13 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 			        camera_id,
 			        m_socket,
 				g_buffer_count);
-#if 0   //The IPU HAL will 
-			m_cameras_info[camera_id].buffers =
-			    (camera_buffer_t *)malloc(sizeof(camera_buffer_t) * g_buffer_count);
-			buf = m_cameras_info[camera_id].instance->get_buffers(get_stream_id(req));
+
 			m_cameras_info[camera_id].buffers =
 				m_cameras_info[camera_id].instance->get_buffers(get_stream_id(req));
 			pr_info("create buffer for camera %d, virtual_cameras client %d buffer %p\n",
 				camera_id,
 				m_socket,
 				buf);
-			for (int i = 0; i < g_buffer_count; i++) {
-				m_cameras_info[camera_id].buffers[i] = buf[i];
-				pr_info("create buffer for camera %d, virtual_cameras client %d m_buffers[%d][%d] %p\n",
-				        camera_id,
-				        m_socket,
-				        camera_id,
-				        i,
-				        m_cameras_info[camera_id].buffers[i].addr);
-			}
-#else
-			m_cameras_info[camera_id].buffers =
-				m_cameras_info[camera_id].instance->get_buffers(get_stream_id(req));
-			pr_info("create buffer for camera %d, virtual_cameras client %d buffer %p\n",
-				camera_id,
-				m_socket,
-				buf);
-#endif
 		} else
 		{
 			pr_info("%p buffers have been created for camera %d, virtual_cameras client %d buffers %p\n",
@@ -290,7 +274,6 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 	case VIRTUAL_CAMERA_DEL_BUFFER:
 		pr_info("memset m_buffers client %d camera %d\n",m_socket,camera_id);
 		m_cameras_info[camera_id].buffers = nullptr;
-		//memset(m_cameras_info[camera_id].buffers,0,sizeof(camera_buffer_t) * g_buffer_count);
 		break;
 
 		/* we will send buffer to client and skip the dq requese*/
@@ -322,7 +305,7 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 		        buf->addr);
 
 		// processing data with buf
-		m_cameras_info[camera_id].instance->qbuf(&buf, 1, this);
+		m_cameras_info[camera_id].instance->qbuf(&buf, 1, &m_cameras_info[camera_id].info);
 
 		for (int i = 0; i < g_buffer_count; i++) {
 			pr_info("VIRTUAL_CAMERA_QBUF after qbuf:camera %d, client %d m_buffers[%d][%d] %p index %d\n",
@@ -339,23 +322,25 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 	case VIRTUAL_CAMERA_STREAM_ON:
 		ret = m_cameras_info[camera_id].instance->start();
 		pr_info("Camera Manager VIRTUAL_CAMERA_STREAM_ON ret\n");
-		m_cameras_info[camera_id].instance->register_consumer(this);
+		m_cameras_info[camera_id].instance->register_consumer(&m_cameras_info[camera_id].info);
 		m_cameras_info[camera_id].state = STREAM_ON;
 		break;
 	case VIRTUAL_CAMERA_STREAM_OFF:
 		if (m_cameras_info[camera_id].instance) {
+			int physical_id = m_cameras_info[camera_id].id;
+
 			std::lock_guard<std::mutex> lock(g_handle_mutex);
 
-			m_cameras_info[camera_id].instance->remove_consumer(this);
+			m_cameras_info[camera_id].instance->remove_consumer(&m_cameras_info[camera_id].info);
 			m_cameras_info[camera_id].state = STREAM_OFF;
 			release_camera_buffer(camera_id);
 			m_cameras_info[camera_id].instance.reset();
-			if (g_handle[camera_id].expired()) {
-				pr_info("Camera Manager reset instance for camera %d use_count 0\n", camera_id);
+			if (g_handle[physical_id].expired()) {
+				pr_info("Camera Manager reset instance for camera %d use_count 0\n", physical_id);
 			} else {
 				pr_info("Camera Manager reset instance for camera %d use_count %ld\n",
-				        camera_id,
-				        g_handle[camera_id].lock().use_count());
+				        physical_id,
+				        g_handle[physical_id].lock().use_count());
 			}
 		}
 		pr_info("Camera Manager VIRTUAL_CAMERA_STREAM_OFF \n");
@@ -374,33 +359,30 @@ int virtual_cameras::handle_msg(struct virtual_camera_request *req)
 	return ret;
 }
 
-int virtual_cameras::fill_camera_request(virtual_camera_request *rsp, void *p)
+int virtual_cameras::fill_camera_request(int camera_id, virtual_camera_request *rsp, void *p)
 {
 	rsp->type = VIRTUAL_CAMERA_DQBUF;
 
-	for (int i = 0; i < m_camera_number; i++)
-	{
-		if (m_cameras_info[i].buffers == NULL)
-			continue;
-		pr_info("fill_camera_request for m_buffers[%d] = %p \n", i, m_cameras_info[i].buffers);
-		for (int j = 0; j < g_buffer_count; j++) {
-			pr_info("fill_camera_request for client %d m_buffers[%d][%d].addr = %p \n",
-			        m_socket,
-			        i,
-			        j,
-			        m_cameras_info[i].buffers[j].addr);
-			if (m_cameras_info[i].buffers[j].addr == p) {
-				rsp->camera_id = i;
-				rsp->buffer.index = j;
+	if (m_cameras_info[camera_id].buffers) {
+		pr_info("%s for m_buffers[%d] = %p \n", __func__, camera_id, m_cameras_info[camera_id].buffers);
+
+		for (int i = 0; i < g_buffer_count; i++) {
+			pr_info("%s for client %d m_buffers[%d][%d].addr = %p \n",
+					__func__, m_socket, camera_id, i, m_cameras_info[camera_id].buffers[i].addr);
+			if (m_cameras_info[camera_id].buffers[i].addr == p) {
+				rsp->camera_id = camera_id;
+				rsp->buffer.index = i;
 				return 0;
 			}
 		}
+	} else {
+		pr_info("%s for m_buffers[%d] is NULL \n", __func__, camera_id);
 	}
 
-	return -1;
+	return -EINVAL;
 }
 
-int virtual_cameras::handle_data(camera_data *pdata)
+int virtual_cameras::handle_data(int camera_id, camera_data *pdata)
 {
 	int ret = 0;
 	virtual_camera_request rsp = {0};
@@ -409,15 +391,19 @@ int virtual_cameras::handle_data(camera_data *pdata)
 	for (int i = 0; i < pdata->request.m_buffer_number; i++) {
 		virtual_camera_request rsp;
 
-		ret = fill_camera_request(&rsp, pdata->request.m_buffers[i].addr);
+		ret = fill_camera_request(camera_id, &rsp, pdata->request.m_buffers[i].addr);
 
 		pr_info("Camera Manager send the buffer_index %d\n", rsp.buffer.index);
 		pr_info("Camera Manager send the pdata->request.m_buffers[%d]->index %d\n",
 		        i,
 		        pdata->request.m_buffers[i].index);
 
-		if (m_state == CLIENT_CONNECT) {
+		if ((ret == 0) && (m_state == CLIENT_CONNECT)) {
 			send(m_socket, &rsp, sizeof(struct virtual_camera_request), 0);
+		} else {
+			pr_info("Camera Manager skip the invalid data for camera id %d, %p\n",
+			        camera_id,
+			        pdata->request.m_buffers[i].addr);
 		}
 	}
 	return 0;
