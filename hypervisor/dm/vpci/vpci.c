@@ -278,7 +278,7 @@ void deinit_vpci(struct acrn_vm *vm)
 	struct pci_vdev *vdev, *parent_vdev;
 	uint32_t i;
 
-	for (i = 0U; i < vm->vpci.pci_vdev_cnt; i++) {
+	for (i = 0U; i < CONFIG_MAX_PCI_DEV_NUM; i++) {
 		vdev = (struct pci_vdev *) &(vm->vpci.pci_vdevs[i]);
 
 		/* Only deinit the VM's own devices */
@@ -705,15 +705,22 @@ static int32_t vpci_write_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
  *                          Otherwise, it is NULL.
  *
  * @pre vpci != NULL
- * @pre vpci.pci_vdev_cnt <= CONFIG_MAX_PCI_DEV_NUM
  *
  * @return If there's a successfully initialized vdev structure return it, otherwise return NULL;
  */
 struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_config *dev_config, struct pci_vdev *parent_pf_vdev)
 {
-	struct pci_vdev *vdev = &vpci->pci_vdevs[vpci->pci_vdev_cnt];
+	struct pci_vdev *vdev;
+	uint32_t id = (uint32_t)ffz64_ex(vpci->vdev_bitmaps, CONFIG_MAX_PCI_DEV_NUM);
 
-	vpci->pci_vdev_cnt++;
+	if (id >= CONFIG_MAX_PCI_DEV_NUM) {
+		panic("vpci bitmap used up, increase MAX_PCI_DEV_NUM in scenario!");
+	}
+
+	bitmap_set_nolock((id & 0x3FU), &vpci->vdev_bitmaps[id >> 6U]);
+
+	vdev = &vpci->pci_vdevs[id];
+	vdev->id = id;
 	vdev->vpci = vpci;
 	vdev->bdf.value = dev_config->vbdf.value;
 	vdev->pdev = dev_config->pdev;
@@ -733,6 +740,25 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 	vdev->vdev_ops->init_vdev(vdev);
 
 	return vdev;
+}
+
+/**
+ * @brief Deinitialize a vdev structure.
+ * 
+ * The caller of the function vpci_init_vdev should guarantee execution atomically.
+ *
+ * @param vdev              Pointer to a vdev structure
+ *
+ * @pre vpci != NULL
+ * @pre vdev->vpci != NULL
+ */
+void vpci_deinit_vdev(struct pci_vdev *vdev)
+{
+	vdev->vdev_ops->deinit_vdev(vdev);
+
+	hlist_del(&vdev->link);
+	bitmap_clear_nolock((vdev->id & 0x3FU), &vdev->vpci->vdev_bitmaps[vdev->id >> 6U]);
+	memset(vdev, 0U, sizeof(struct pci_vdev));
 }
 
 /**
@@ -849,15 +875,19 @@ int32_t vpci_deassign_pcidev(struct acrn_vm *tgt_vm, struct acrn_pcidev *pcidev)
 {
 	int32_t ret = 0;
 	struct pci_vdev *parent_vdev, *vdev;
+	struct acrn_vpci *vpci;
 	union pci_bdf bdf;
 
 	bdf.value = pcidev->virt_bdf;
 	vdev = pci_find_vdev(&tgt_vm->vpci, bdf);
 	if ((vdev != NULL) && (vdev->user == vdev) && (vdev->pdev != NULL) &&
 			(vdev->pdev->bdf.value == pcidev->phys_bdf)) {
+		vpci = vdev->vpci;
 		parent_vdev = vdev->parent_user;
 
-		vdev->vdev_ops->deinit_vdev(vdev);
+		spinlock_obtain(&vpci->lock);
+		vpci_deinit_vdev(vdev);
+		spinlock_release(&vpci->lock);
 
 		if (parent_vdev != NULL) {
 			spinlock_obtain(&parent_vdev->vpci->lock);
