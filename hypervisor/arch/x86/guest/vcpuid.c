@@ -700,10 +700,12 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 #endif
 				break;
 
+			/* Hide cpuid 0x14U/0x1BU */
 			/* 0x14U, Intel Processor Trace */
 			case CPUID_TRACE:
 			/* 0x1BU, PCONFIG */
 			case CPUID_PCONFIG:
+				break;
 			default:
 				init_vcpuid_entry(i, 0U, 0U, &entry);
 				result = set_vcpuid_entry(vm, &entry);
