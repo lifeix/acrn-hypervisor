@@ -1,5 +1,7 @@
 CFLAGS = -fPIC
 
+MAJOR_VERSION = 1
+MINOR_VERSION = 0
 VCAMHAL_SRC = vICamera.cpp
 VCAMHAL_OBJ = vICamera.o
 VCAMHAL_LIB = libvcamhal.so
@@ -20,18 +22,18 @@ $(VCAMHAL_OBJ): $(VCAMHAL_SRC)
 	$(CXX) $(CFLAGS) $^ -c -o $@
 
 $(VCAMHAL_LIB): $(VCAMHAL_OBJ)
-	$(CXX) -shared $^ -o $@ $(LDFLAGS)
+	$(CXX) -shared $^ -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $(LDFLAGS) -Wl,-soname,$@.$(MAJOR_VERSION)
 
-$(VCAMHAL_TEST): $(VCAMHAL_TEST_OBJ) $(VCAMHAL_LIB)
-	$(CC) $^ -o $@
+$(VCAMHAL_TEST): $(VCAMHAL_TEST_OBJ)
+	$(CC) $^ -o $@ -L. -lvcamhal
 
 $(ICAMHAL_TEST): $(ICAMHAL_TEST_OBJ)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 install: $(VCAMHAL_LIB)
-	sudo cp $(VCAMHAL_LIB) /usr/lib/
+	sudo cp $(VCAMHAL_LIB)* /usr/lib/
 
 clean:
-	rm -f *.o *.so *.bin
+	rm -f *.o *.so *.bin *so.*
 
 .PHONY: clean install
