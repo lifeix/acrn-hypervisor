@@ -1153,7 +1153,7 @@ static int virtio_camera_get_config(char *config_lib, char *vm_name)
 	if (config_lib) {
 		lib = config_lib;
 	} else {
-		lib = "/usr/lib/camera_config.so"; // default value
+		lib = "/usr/lib/libcamera_config.so"; // default value
 	}
 
 	ret = fill_config_ops(lib, &g_camera_config_handle, &g_camera_config_ops);
