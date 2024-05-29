@@ -99,6 +99,7 @@ struct vcamera_format {
 	uint32_t step_height;
 	uint32_t stride;
 	uint32_t sizeimage;
+	uint32_t fps;
 };
 
 struct picture_format {
@@ -129,6 +130,7 @@ typedef enum {
 	VIRTIO_CAMERA_STREAM_OFF = 10,
 	VIRTIO_CAMERA_OPEN = 11,
 	VIRTIO_CAMERA_CLOSE = 12,
+	VIRTIO_CAMERA_ENUM_INTV = 13,
 
 	VIRTIO_CAMERA_RET_OK = 0x100,
 

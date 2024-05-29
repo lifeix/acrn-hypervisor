@@ -768,6 +768,26 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 		    camera_devs[camera_id].supported_stream_list.streams[req->index].height;
 		break;
 
+	case VIRTIO_CAMERA_ENUM_INTV:
+		pr_info("virtio_camera Enum frame interval\n");
+		response->type = VIRTIO_CAMERA_RET_INVALID;
+		if (req->index > 0) {
+			pr_info("virtio_camera VIRTIO_CAMERA_ENUM_INTERVAL faild, only one fps supported\n");
+			break;
+		}
+		for(i=0; i < camera_devs[camera_id].supported_stream_list.num_streams; i++) {
+			stream_t *s_fmt = &camera_devs[camera_id].supported_stream_list.streams[i];
+			if(s_fmt->height == req->u.format.camera_format.height &&
+				s_fmt->width == req->u.format.camera_format.width &&
+				s_fmt->format == req->u.format.pixel_format_type) {
+					/* here set the default fps is 30 */
+					response->u.format.camera_format.fps = 30;
+					response->type = VIRTIO_CAMERA_RET_OK;
+					break;
+				}
+		}
+		break;
+
 	case VIRTIO_CAMERA_CREATE_BUFFER:
 
 		pr_info("virtio_camera It is create buffer, has %d segments\n", req->u.buffer.segment);
@@ -984,6 +1004,7 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 		break;
 
 	default:
+		response->type = VIRTIO_CAMERA_RET_INVALID;
 		pr_err("virtio-camera: invalid request type\n");
 		break;
 	};
