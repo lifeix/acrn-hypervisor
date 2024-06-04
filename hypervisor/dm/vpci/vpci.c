@@ -710,35 +710,31 @@ static int32_t vpci_write_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
  */
 struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_config *dev_config, struct pci_vdev *parent_pf_vdev)
 {
-	struct pci_vdev *vdev;
+	struct pci_vdev *vdev = NULL;
 	uint32_t id = (uint32_t)ffz64_ex(vpci->vdev_bitmaps, CONFIG_MAX_PCI_DEV_NUM);
 
-	if (id >= CONFIG_MAX_PCI_DEV_NUM) {
-		panic("vpci bitmap used up, increase MAX_PCI_DEV_NUM in scenario!");
+	if (id < CONFIG_MAX_PCI_DEV_NUM) {
+		bitmap_set_nolock((id & 0x3FU), &vpci->vdev_bitmaps[id >> 6U]);
+
+		vdev = &vpci->pci_vdevs[id];
+		vdev->id = id;
+		vdev->vpci = vpci;
+		vdev->bdf.value = dev_config->vbdf.value;
+		vdev->pdev = dev_config->pdev;
+		vdev->pci_dev_config = dev_config;
+		vdev->phyfun = parent_pf_vdev;
+
+		hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(dev_config->vbdf.value, VDEV_LIST_HASHBITS)]);
+		if (dev_config->vdev_ops != NULL) {
+			vdev->vdev_ops = dev_config->vdev_ops;
+		} else {
+			vdev->vdev_ops = &pci_pt_dev_ops;
+			ASSERT(dev_config->emu_type == PCI_DEV_TYPE_PTDEV,
+				"Only PCI_DEV_TYPE_PTDEV could not configure vdev_ops");
+			ASSERT(dev_config->pdev != NULL, "PCI PTDev is not present on platform!");
+		}
+		vdev->vdev_ops->init_vdev(vdev);
 	}
-
-	bitmap_set_nolock((id & 0x3FU), &vpci->vdev_bitmaps[id >> 6U]);
-
-	vdev = &vpci->pci_vdevs[id];
-	vdev->id = id;
-	vdev->vpci = vpci;
-	vdev->bdf.value = dev_config->vbdf.value;
-	vdev->pdev = dev_config->pdev;
-	vdev->pci_dev_config = dev_config;
-	vdev->phyfun = parent_pf_vdev;
-
-	hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(dev_config->vbdf.value, VDEV_LIST_HASHBITS)]);
-	if (dev_config->vdev_ops != NULL) {
-		vdev->vdev_ops = dev_config->vdev_ops;
-	} else {
-		vdev->vdev_ops = &pci_pt_dev_ops;
-		ASSERT(dev_config->emu_type == PCI_DEV_TYPE_PTDEV,
-			"Only PCI_DEV_TYPE_PTDEV could not configure vdev_ops");
-		ASSERT(dev_config->pdev != NULL, "PCI PTDev is not present on platform!");
-	}
-
-	vdev->vdev_ops->init_vdev(vdev);
-
 	return vdev;
 }
 
@@ -767,6 +763,7 @@ void vpci_deinit_vdev(struct pci_vdev *vdev)
 static int32_t vpci_init_vdevs(struct acrn_vm *vm)
 {
 	uint16_t idx;
+	struct pci_vdev *vdev;
 	struct acrn_vpci *vpci = &(vm->vpci);
 	const struct acrn_vm_config *vm_config = get_vm_config(vpci2vm(vpci)->vm_id);
 	int32_t ret = 0;
@@ -774,7 +771,11 @@ static int32_t vpci_init_vdevs(struct acrn_vm *vm)
 	for (idx = 0U; idx < vm_config->pci_dev_num; idx++) {
 		/* the vdev whose vBDF is unassigned will be created by hypercall */
 		if ((!is_postlaunched_vm(vm)) || (vm_config->pci_devs[idx].vbdf.value != UNASSIGNED_VBDF)) {
-			(void)vpci_init_vdev(vpci, &vm_config->pci_devs[idx], NULL);
+			vdev = vpci_init_vdev(vpci, &vm_config->pci_devs[idx], NULL);
+			if (vdev == NULL) {
+				pr_err("%s: failed to initialize vpci, increase MAX_PCI_DEV_NUM in scenario!\n", __func__);
+				break;
+			}
 			ret = check_pt_dev_pio_bars(&vpci->pci_vdevs[idx]);
 			if (ret != 0) {
 				break;
@@ -824,33 +825,40 @@ int32_t vpci_assign_pcidev(struct acrn_vm *tgt_vm, struct acrn_pcidev *pcidev)
 
 		spinlock_obtain(&tgt_vm->vpci.lock);
 		vdev = vpci_init_vdev(vpci, vdev_in_service_vm->pci_dev_config, vdev_in_service_vm->phyfun);
-		pci_vdev_write_vcfg(vdev, PCIR_INTERRUPT_LINE, 1U, pcidev->intr_line);
-		pci_vdev_write_vcfg(vdev, PCIR_INTERRUPT_PIN, 1U, pcidev->intr_pin);
-		for (idx = 0U; idx < vdev->nr_bars; idx++) {
-			/* VF is assigned to a User VM */
-			if (vdev->phyfun != NULL) {
-				vdev->vbars[idx] = vdev_in_service_vm->vbars[idx];
-				if (has_msix_cap(vdev) && (idx == vdev->msix.table_bar)) {
-					vdev->msix.mmio_hpa = vdev->vbars[idx].base_hpa;
-					vdev->msix.mmio_size = vdev->vbars[idx].size;
+		if (vdev != NULL) {
+			pci_vdev_write_vcfg(vdev, PCIR_INTERRUPT_LINE, 1U, pcidev->intr_line);
+			pci_vdev_write_vcfg(vdev, PCIR_INTERRUPT_PIN, 1U, pcidev->intr_pin);
+			for (idx = 0U; idx < vdev->nr_bars; idx++) {
+				/* VF is assigned to a User VM */
+				if (vdev->phyfun != NULL) {
+					vdev->vbars[idx] = vdev_in_service_vm->vbars[idx];
+					if (has_msix_cap(vdev) && (idx == vdev->msix.table_bar)) {
+						vdev->msix.mmio_hpa = vdev->vbars[idx].base_hpa;
+						vdev->msix.mmio_size = vdev->vbars[idx].size;
+					}
 				}
+				pci_vdev_write_vbar(vdev, idx, pcidev->bar[idx]);
 			}
-			pci_vdev_write_vbar(vdev, idx, pcidev->bar[idx]);
-		}
 
-		ret = check_pt_dev_pio_bars(vdev);
+			ret = check_pt_dev_pio_bars(vdev);
 
-		if (ret == 0) {
-			vdev->flags |= pcidev->type;
-			vdev->bdf.value = pcidev->virt_bdf;
-			/*We should re-add the vdev to hashlist since its vbdf has changed */
-			hlist_del(&vdev->link);
-			hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(vdev->bdf.value, VDEV_LIST_HASHBITS)]);
-			vdev->parent_user = vdev_in_service_vm;
-			vdev_in_service_vm->user = vdev;
+			if (ret == 0) {
+				vdev->flags |= pcidev->type;
+				vdev->bdf.value = pcidev->virt_bdf;
+				/*We should re-add the vdev to hashlist since its vbdf has changed */
+				hlist_del(&vdev->link);
+				hlist_add_head(&vdev->link, &vpci->vdevs_hlist_heads[hash64(vdev->bdf.value, VDEV_LIST_HASHBITS)]);
+				vdev->parent_user = vdev_in_service_vm;
+				vdev_in_service_vm->user = vdev;
+			} else {
+				vdev->vdev_ops->deinit_vdev(vdev);
+				vdev_in_service_vm->vdev_ops->init_vdev(vdev_in_service_vm);
+			}
 		} else {
-			vdev->vdev_ops->deinit_vdev(vdev);
-			vdev_in_service_vm->vdev_ops->init_vdev(vdev_in_service_vm);
+			pr_fatal("%s, Failed to initialize PCI device %x:%x.%x for vm [%d]\n", __func__,
+				pcidev->phys_bdf >> 8U, (pcidev->phys_bdf >> 3U) & 0x1fU, pcidev->phys_bdf & 0x7U,
+				tgt_vm->vm_id);
+			ret = -EFAULT;
 		}
 		spinlock_release(&tgt_vm->vpci.lock);
 	} else {
