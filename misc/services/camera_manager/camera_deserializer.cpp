@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include "camera_utils.h"
 
 #define GET_SYMBOL(handle, p, symbol)                                                                                  \
 	(p) = (typeof(p))dlsym((handle), (symbol));                                                                    \
@@ -346,32 +347,11 @@ void camera_deserializer::deinit()
 
 int camera_deserializer_hal::fill_hal_ops(const char *hal_name)
 {
-	m_hal_handle = dlopen(hal_name, RTLD_LAZY);
-	if (m_hal_handle == NULL) {
-		pr_info("Failed to open %s %s\n", hal_name, dlerror());
-	} else {
-		GET_SYMBOL(m_hal_handle, m_ops.get_camera_info, "vcamera_get_camera_info");
-		GET_SYMBOL(m_hal_handle, m_ops.hal_init, "vcamera_hal_init");
-		GET_SYMBOL(m_hal_handle, m_ops.hal_deinit, "vcamera_hal_deinit");
-		GET_SYMBOL(m_hal_handle, m_ops.open, "vcamera_device_open");
-		GET_SYMBOL(m_hal_handle, m_ops.close, "vcamera_device_close");
-		GET_SYMBOL(m_hal_handle, m_ops.config_sensor_input, "vcamera_device_config_sensor_input");
-		GET_SYMBOL(m_hal_handle, m_ops.config_streams, "vcamera_device_config_streams");
-		GET_SYMBOL(m_hal_handle, m_ops.start_stream, "vcamera_device_start");
-		GET_SYMBOL(m_hal_handle, m_ops.stop_stream, "vcamera_device_stop");
-		GET_SYMBOL(m_hal_handle, m_ops.allocate_memory, "vcamera_device_allocate_memory");
-		GET_SYMBOL(m_hal_handle, m_ops.get_frame_size, "vcamera_get_frame_size");
-		GET_SYMBOL(m_hal_handle, m_ops.stream_qbuf, "vcamera_stream_qbuf");
-		GET_SYMBOL(m_hal_handle, m_ops.stream_dqbuf, "vcamera_stream_dqbuf");
-		GET_SYMBOL(m_hal_handle, m_ops.set_parameters, "vcamera_set_parameters");
-		GET_SYMBOL(m_hal_handle, m_ops.get_parameters, "vcamera_get_parameters");
-		GET_SYMBOL(m_hal_handle, m_ops.get_formats_number, "vcamera_get_formats_number");
-		GET_SYMBOL(m_hal_handle, m_ops.get_formats, "vcamera_get_formats");
-		return 0;
-	Error:
-		pr_info("Failed to find function in %s %s\n", hal_name, dlerror());
+	int ret = ::fill_hal_ops(hal_name, &m_hal_handle, &m_ops);
+
+	if (!ret && (!m_hal_handle)) {
 		dlclose(m_hal_handle);
-		m_hal_handle = NULL;
+		m_hal_handle = nullptr;
 	}
 	return -1;
 }

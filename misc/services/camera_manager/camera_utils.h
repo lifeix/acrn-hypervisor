@@ -13,7 +13,7 @@ extern "C" {
 	}                                                                                                              \
 	pr_info("find %s\n", (symbol));
 
-static int fill_hal_ops(char *library_name, void **handle, struct camera_ops *hal_ops)
+static int fill_hal_ops(const char *library_name, void **handle, struct camera_ops *hal_ops)
 {
 	void *hal_handle = dlopen(library_name, RTLD_LAZY);
 
@@ -37,6 +37,7 @@ static int fill_hal_ops(char *library_name, void **handle, struct camera_ops *ha
 		GET_SYMBOL(hal_handle, hal_ops->get_parameters, "vcamera_get_parameters");
 		GET_SYMBOL(hal_handle, hal_ops->get_formats_number, "vcamera_get_formats_number");
 		GET_SYMBOL(hal_handle, hal_ops->get_formats, "vcamera_get_formats");
+		GET_SYMBOL(hal_handle, hal_ops->set_client_name, "vcamera_set_client_name");
 		*handle = hal_handle;
 		return 0;
 	}
