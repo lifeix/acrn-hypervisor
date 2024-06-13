@@ -1097,11 +1097,6 @@ static void virtio_camera_dev_init(int camera_id)
 		ret = camera_devs[camera_id].ops.config_sensor_input(camera_id, &input_config);
 		pr_info("virtio_camera config_sensor_input ret = %d\n", ret);
 	}
-
-	if (camera_devs[camera_id].ops.set_exposure) {
-		ret = camera_devs[camera_id].ops.set_exposure(camera_id, 20);
-		pr_info("virtio_camera set_exposure ret = %d\n", ret);
-	}
 }
 
 static int map_buffer(int camera_id, int buffer_index)
