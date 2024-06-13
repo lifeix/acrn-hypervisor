@@ -20,6 +20,7 @@ $(CAMERA_CLIENT): camera_client.o camera_config.o
 	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ -g -Wl,-soname,$@.$(MAJOR_VERSION)
 $(CAMERA_CONFIG): camera_config.o
 	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ -g -Wl,-soname,$@.$(MAJOR_VERSION)
+	ln -sf $@.$(MAJOR_VERSION).$(MINOR_VERSION) $@
 $(CAMERA_FUSION): camera_fusion.o
 	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ $(LDFLAGS) -g -Wl,-soname,$@.$(MAJOR_VERSION)
 $(CAMERA_CONFIG_TEST): camera_config_test.o
