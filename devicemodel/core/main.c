@@ -103,6 +103,7 @@ bool is_winvm;
 bool skip_pci_mem64bar_workaround = false;
 bool gfx_ui = false;
 bool only_be = false;
+bool ovmf_loaded = false;
 
 static int guest_ncpus = 1;
 static int virtio_msix = 1;
@@ -763,6 +764,8 @@ vm_suspend_resume(struct vmctx *ctx)
 	 *   6. hypercall restart vm
 	 */
 	vm_pause(ctx);
+	if (ovmf_loaded)
+		vrtc_suspend(ctx);
 
 	vm_clear_ioreq(ctx);
 	vm_stop_watchdog(ctx);
@@ -780,7 +783,11 @@ vm_suspend_resume(struct vmctx *ctx)
 		vm_reset(ctx);
 	}
 
-	if (acrn_has_cap(ACRN_CAP_SET_REG)) {
+	if (ovmf_loaded) {
+		/* set the BSP init state */
+		vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
+	/* for bzImage or elf */
+	} else if (acrn_has_cap(ACRN_CAP_SET_REG)) {
 		union acrn_reg reg;
 
 		/* set the BSP waking vector */
@@ -792,9 +799,6 @@ vm_suspend_resume(struct vmctx *ctx)
 		vm_set_one_reg(ctx, BSP, CPU_REG_CS, reg);
 		reg.qval = 0;
 		vm_set_one_reg(ctx, BSP, CPU_REG_RIP, reg);
-	} else {
-		/* set the BSP init state */
-		vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
 	}
 
 	vm_run(ctx);
@@ -1064,6 +1068,7 @@ main(int argc, char *argv[])
 		case CMD_OPT_OVMF:
 			if (!vsbl_file_name && acrn_parse_ovmf(optarg) != 0)
 				errx(EX_USAGE, "invalid ovmf param %s", optarg);
+			ovmf_loaded = true;
 			skip_pci_mem64bar_workaround = true;
 			break;
 		case CMD_OPT_IASL:
