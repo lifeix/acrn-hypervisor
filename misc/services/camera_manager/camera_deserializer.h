@@ -8,47 +8,11 @@
 
 #include "camera_data_provider.h"
 #include <queue>
+#include "../../library/include/vICamera.h"
 
 const int MAX_SERIALIZER_NUMBER = 20;
 const int MAX_DESERIALIZER_NUMBER = 6;
 const int MAX_CAMERA_BUFFER = 6;
-
-enum interface_type {
-	V4L2_INTERFACE = 0,
-	HAL_INTERFACE = 1,
-	PROXY_INTERFACE = 2,
-	SUPER_FRAME_INTERFACE = 3,
-};
-
-struct camera_ops {
-	int (*get_camera_info)(int camera_id,void* data);
-
-	int (*open)(int camera_id);
-	void (*close)(int camera_id);
-
-	int (*allocate_memory)(int camera_id,camera_buffer_t* buffer);
-
-	int (*config_streams)(int camera_id,void* data);
-	int (*start_stream)(int camera_id);
-	int (*stop_stream)(int camera_id);
-
-	int (*stream_qbuf)(int camera_id,camera_buffer_t** buffer,int num_buffers,void* settings);
-	int (*stream_dqbuf)(int camera_id,int stream_id,camera_buffer_t** buffer,void* settings);
-
-	int (*hal_init)();
-	int (*hal_deinit)();
-	int (*config_sensor_input)(int camera_id,void* data);
-	int (*get_frame_size)(int camera_id,int format,int width,int height,int field,int* bpp);
-	int (*set_exposure)(int camera_id,int date);
-	int (*set_parameters)(int camera_id,void* data);
-	int (*get_parameters)(int camera_id,void* data,int64_t sequence);
-
-	void (*callback_register)(int camera_id,void* data);
-	int (*req_bufs)(int camera_id);
-	int (*get_formats_number)(int camera_id);
-	int (*get_formats)(int camera_id,stream_t* p,int* streams_number);
-	int (*set_client_name)(char *name, int size);
-};
 
 /**
  * This class abstract the deserializer hardware, which could connect to multiple serializers

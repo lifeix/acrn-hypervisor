@@ -6,7 +6,7 @@
  */
 
 #include "camera_client.h"
-#include "camera_utils.h"
+#include "../../library/include/camera_utils.h"
 
 static struct camera_ops g_hal_ops = {0};
 static void *g_hal_handle = NULL;
