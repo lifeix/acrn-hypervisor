@@ -1131,6 +1131,7 @@ static int unmap_buffer(int camera_id, int buffer_index)
 	ret = munmap(addr, camera_devs[camera_id].capture_buffers[buffer_index].length);
 	if (ret != 0) {
 		pr_err("unmap_buffer buffer_index %d faild\n", buffer_index);
+		close(camera_devs[camera_id].capture_buffers[buffer_index].dmabuf_fd);
 	} else {
 		pr_info("unmap_buffer buffer_index %d success\n", buffer_index);
 		camera_devs[camera_id].capture_buffers[buffer_index].remapped_addr = NULL;
