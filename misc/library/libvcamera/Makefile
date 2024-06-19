@@ -22,13 +22,14 @@ $(VCAMHAL_OBJ): $(VCAMHAL_SRC)
 	$(CXX) $(CFLAGS) $^ -c -o $@
 
 $(VCAMHAL_LIB): $(VCAMHAL_OBJ)
-	$(CXX) -shared $^ -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $(LDFLAGS) -Wl,-soname,$@.$(MAJOR_VERSION)
+	$(CXX) -shared $^ -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $(LDFLAGS) -Wl,--hash-style=gnu,-soname,$@.$(MAJOR_VERSION)
+	ln -sf $@.$(MAJOR_VERSION).$(MINOR_VERSION) $@.$(MAJOR_VERSION)
 
 $(VCAMHAL_TEST): $(VCAMHAL_TEST_OBJ)
-	$(CC) $^ -o $@ -L. -lvcamhal
+	$(CC) $^ -o $@ $(VCAMHAL_LIB).$(MAJOR_VERSION) -Wl,--hash-style=gnu
 
 $(ICAMHAL_TEST): $(ICAMHAL_TEST_OBJ)
-	$(CXX) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS) -Wl,--hash-style=gnu
 
 install: $(VCAMHAL_LIB)
 	sudo cp $(VCAMHAL_LIB)* /usr/lib/

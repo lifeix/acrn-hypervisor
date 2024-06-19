@@ -15,14 +15,14 @@ all: $(CAMERA_MANAGER) $(CAMERA_CLIENT) $(CAMERA_CONFIG) $(CAMERA_CONFIG_TEST) $
 	$(CXX) $(CFLAGS) -c $< -o $@ -g
 
 $(CAMERA_MANAGER): camera_data_provider.o camera_deserializer.o camera.o camera_manager.o camera_config.o
-	$(CXX) $(CFLAGS) -o $@ $^ -g
+	$(CXX) $(CFLAGS) -o $@ $^ -g -Wl,--hash-style=gnu
 $(CAMERA_CLIENT): camera_client.o camera_config.o
-	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ -g -Wl,-soname,$@.$(MAJOR_VERSION)
+	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ -g -Wl,--hash-style=gnu,-soname,$@.$(MAJOR_VERSION)
 $(CAMERA_CONFIG): camera_config.o
-	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ -g -Wl,-soname,$@.$(MAJOR_VERSION)
+	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ -g -Wl,--hash-style=gnu,-soname,$@.$(MAJOR_VERSION)
 	ln -sf $@.$(MAJOR_VERSION).$(MINOR_VERSION) $@
 $(CAMERA_FUSION): camera_fusion.o
-	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ $(LDFLAGS) -g -Wl,-soname,$@.$(MAJOR_VERSION)
+	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $^ $(LDFLAGS) -g -Wl,--hash-style=gnu,-soname,$@.$(MAJOR_VERSION)
 $(CAMERA_CONFIG_TEST): camera_config_test.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -g
 
