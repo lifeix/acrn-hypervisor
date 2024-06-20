@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <linux/videodev2.h>
-#include "ICamera.h"
+#include <ICamera.h>
 
 using namespace icamera;
 

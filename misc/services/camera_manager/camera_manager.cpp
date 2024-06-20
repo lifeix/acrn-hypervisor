@@ -6,7 +6,6 @@
  */
 
 #include <ICamera.h>
-#include <Parameters.h>
 #include <signal.h>
 
 #include "camera_manager.h"

@@ -8,7 +8,6 @@
 #include <linux/videodev2.h>
 #include <cstring>
 #include <stdio.h>
-#include <Parameters.h>
 #include <ICamera.h>
 
 using namespace icamera;

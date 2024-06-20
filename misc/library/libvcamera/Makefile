@@ -16,7 +16,7 @@ ICAMHAL_TEST = icamhal_test.bin
 
 LDFLAGS = -L. -lhal_adaptor
 
-all: $(VCAMHAL_OBJ) $(VCAMHAL_LIB) $(VCAMHAL_TEST) $(ICAMHAL_TEST)
+all: $(VCAMHAL_OBJ) $(VCAMHAL_LIB)
 
 $(VCAMHAL_OBJ): $(VCAMHAL_SRC)
 	$(CXX) $(CFLAGS) $^ -c -o $@
@@ -24,6 +24,7 @@ $(VCAMHAL_OBJ): $(VCAMHAL_SRC)
 $(VCAMHAL_LIB): $(VCAMHAL_OBJ)
 	$(CXX) -shared $^ -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) $(LDFLAGS) -Wl,--hash-style=gnu,-soname,$@.$(MAJOR_VERSION)
 	ln -sf $@.$(MAJOR_VERSION).$(MINOR_VERSION) $@.$(MAJOR_VERSION)
+	ln -sf $@.$(MAJOR_VERSION) $@
 
 $(VCAMHAL_TEST): $(VCAMHAL_TEST_OBJ)
 	$(CC) $^ -o $@ $(VCAMHAL_LIB).$(MAJOR_VERSION) -Wl,--hash-style=gnu
@@ -31,8 +32,14 @@ $(VCAMHAL_TEST): $(VCAMHAL_TEST_OBJ)
 $(ICAMHAL_TEST): $(ICAMHAL_TEST_OBJ)
 	$(CXX) $^ -o $@ $(LDFLAGS) -Wl,--hash-style=gnu
 
-install: $(VCAMHAL_LIB)
-	sudo cp $(VCAMHAL_LIB)* /usr/lib/
+ifeq ($(strip $(LIBPATH)),)
+    INSTALL_LIBPATH := /usr/lib/
+else
+    INSTALL_LIBPATH := $(LIBPATH)
+endif
+
+install:
+	cp *.so* ${INSTALL_LIBPATH} -P
 
 clean:
 	rm -f *.o *.so *.bin *so.*
