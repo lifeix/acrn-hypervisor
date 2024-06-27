@@ -166,6 +166,11 @@ struct capture_buffer {
 	char reserve[2];
 };
 
+typedef struct {
+	int num_formats;
+	int *formats;
+} buffer_format_list_t;
+
 struct camera_dev {
 	int id;
 	int fd;
@@ -174,6 +179,7 @@ struct camera_dev {
 	void *hal_handle;
 	struct camera_ops ops;
 
+	buffer_format_list_t buffer_format_list;
 	stream_config_t supported_stream_list;
 	stream_config_t stream_list;
 	stream_t streams[1];

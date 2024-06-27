@@ -121,6 +121,86 @@ static int virtio_camera_get_formats(int camera_id, stream_t *p, int *streams_nu
 		return -1;
 }
 
+static bool add_buffer_format(int *formats, int max_format_number, int format, int *count)
+{
+	bool found = false;
+	for (int i = 0; i < *count; ++i) {
+		if (formats[i] == format) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found && *count < max_format_number) {
+		formats[*count] = format;
+		(*count)++;
+		return true;
+	}
+	return false;
+}
+
+static int virtio_camera_init_format_list(int camera_id)
+{
+	pr_info("virtio_camera %s Enter\n", __func__);
+
+	int num_streams = camera_devs[camera_id].supported_stream_list.num_streams;
+	int count = 0;
+
+	camera_devs[camera_id].buffer_format_list.formats = malloc(sizeof(int) * num_streams);
+	if (!camera_devs[camera_id].buffer_format_list.formats)
+		return -1;
+
+	memset(camera_devs[camera_id].buffer_format_list.formats, 0, sizeof(int) * num_streams);
+
+	for (int i = 0; i < num_streams; i++) {
+		int format = camera_devs[camera_id].supported_stream_list.streams[i].format;
+		if (add_buffer_format(camera_devs[camera_id].buffer_format_list.formats, num_streams, format, &count))
+			pr_info("virtio_camera %s add a new format 0x%x\n", __func__, format);
+	}
+
+	camera_devs[camera_id].buffer_format_list.num_formats = count;
+
+	return 0;
+}
+
+static int virtio_camera_get_resolution_number(int camera_id, int format)
+{
+	pr_info("virtio_camera %s Enter\n", __func__);
+
+	int count = 0;
+	int num_streams = camera_devs[camera_id].supported_stream_list.num_streams;
+
+	for (int i = 0; i < num_streams; i++) {
+		if (format == camera_devs[camera_id].supported_stream_list.streams[i].format) {
+			count++;
+		}
+	}
+
+	camera_devs[camera_id].buffer_format_list.num_formats = count;
+
+	return count;
+}
+
+static stream_t *virtio_camera_get_stream(int camera_id, int format, int index)
+{
+	pr_info("virtio_camera %s Enter\n", __func__);
+
+	int count = 0;
+	int num_streams = camera_devs[camera_id].supported_stream_list.num_streams;
+
+	for (int i = 0; i < num_streams; i++) {
+		if (format == camera_devs[camera_id].supported_stream_list.streams[i].format) {
+			if (count == index) {
+				return &camera_devs[camera_id].supported_stream_list.streams[i];
+			} else {
+				count++;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 static int virtio_camera_wrapper_config_streams(int camera_id)
 {
 	int ret = 0;
@@ -659,6 +739,12 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 				    malloc(sizeof(stream_t) * num_streams);
 				virtio_camera_get_formats(
 				    camera_id, camera_devs[camera_id].supported_stream_list.streams, &num_streams);
+				ret = virtio_camera_init_format_list(camera_id);
+				if (ret != 0) {
+					response->type = VIRTIO_CAMERA_RET_INVALID;
+					pr_info("virtio_camera VIRTIO_CAMERA_ENUM_FORMAT init format list faild\n");
+					break;
+				}
 				camera_devs[camera_id].supported_stream_list.operation_mode = 2;
 			} else {
 				num_streams = 1;
@@ -672,7 +758,7 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 				camera_devs[camera_id].supported_stream_list.streams->format = V4L2_PIX_FMT_UYVY;
 			}
 			camera_devs[camera_id].supported_stream_list.operation_mode = 2;
-		} else if (req->index >= camera_devs[camera_id].supported_stream_list.num_streams) {
+		} else if (req->index >= camera_devs[camera_id].buffer_format_list.num_formats) {
 			response->type = VIRTIO_CAMERA_RET_INVALID;
 			pr_info("virtio_camera VIRTIO_CAMERA_ENUM_FORMAT faild\n");
 			break;
@@ -688,8 +774,8 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 
 		break;
 	case VIRTIO_CAMERA_ENUM_SIZE:
-		// pr_info("virtio_camera VIRTIO_CAMERA_ENUM_SIZE camera_id %d req->index %d\n",
-		// 	camera_id, req->index);
+		pr_info("virtio_camera VIRTIO_CAMERA_ENUM_SIZE camera_id %d req->index %d\n",
+			camera_id, req->index);
 		if (camera_devs[camera_id].supported_stream_list.streams == NULL) {
 			if (camera_devs[camera_id].type == HAL_INTERFACE) {
 				num_streams = virtio_camera_get_formats_number(camera_id);
@@ -710,15 +796,17 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 				camera_devs[camera_id].supported_stream_list.streams->format = V4L2_PIX_FMT_UYVY;
 			}
 			camera_devs[camera_id].supported_stream_list.operation_mode = 2;
-		} else if (req->index >= camera_devs[camera_id].supported_stream_list.num_streams) {
+		}
+
+		if (req->index >= virtio_camera_get_resolution_number(camera_id, req->u.format.pixel_format_type)) {
 			response->type = VIRTIO_CAMERA_RET_INVALID;
 			pr_info("virtio_camera VIRTIO_CAMERA_ENUM_FORMAT faild\n");
 			break;
 		}
-		response->u.format.camera_format.width =
-		    camera_devs[camera_id].supported_stream_list.streams[req->index].width;
-		response->u.format.camera_format.height =
-		    camera_devs[camera_id].supported_stream_list.streams[req->index].height;
+
+		stream_t *streams = virtio_camera_get_stream(camera_id, req->u.format.pixel_format_type, req->index);
+		response->u.format.camera_format.width = streams->width;
+		response->u.format.camera_format.height = streams->height;
 		break;
 
 	case VIRTIO_CAMERA_ENUM_INTV:
@@ -1268,6 +1356,12 @@ static void virtio_camera_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *
 				free(camera_devs[index].supported_stream_list.streams);
 				camera_devs[index].supported_stream_list.streams = NULL;
 			}
+
+			if (NULL != camera_devs[index].buffer_format_list.formats) {
+				free(camera_devs[index].buffer_format_list.formats);
+				camera_devs[index].buffer_format_list.formats = NULL;
+			}
+
 			virtio_camera_close(index);
 			virtio_camera_req_stop(vcamera, index);
 			pthread_mutex_destroy(&vcamera->vq_related[index].req_mutex);
