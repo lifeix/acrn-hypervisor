@@ -1041,6 +1041,11 @@ static int virtio_camera_handle(struct virtio_camera_request *req,
 		pthread_mutex_unlock(&camera_devs[camera_id].capture_list_mutex);
 
 		virtio_camera_stop_stream(camera_id);
+		/* help ipu to set fmt because last steam_off will destory fmt */
+		if(camera_devs[camera_id].type != V4L2_INTERFACE) {
+			ret = virtio_camera_wrapper_config_streams(camera_id);
+			pr_notice("virtio_camera help ipu6 set fmt when streamoff, %s\n", ret==0? "success": "fail");
+		}
 
 		break;
 
