@@ -679,6 +679,40 @@ int32_t get_sworld_vm_index(uint16_t vm_id)
 	return vm_idx;
 }
 
+static uint64_t vm_reset_bitmap;
+static uint32_t optee_read_vm_id = -1U;
+
+static bool optee_ctl_io_read(struct acrn_vcpu *vcpu, __unused uint16_t addr, __unused size_t width)
+{
+	struct acrn_pio_request *pio_req = &vcpu->req.reqs.pio_request;
+
+	pr_err("%s_1 vm_reset_bitmap: 0x%x\n", __func__, vm_reset_bitmap);
+	pio_req->value = (optee_read_vm_id < CONFIG_MAX_VM_NUM) ?
+				bitmap_test_and_clear_lock(optee_read_vm_id, &vm_reset_bitmap) : 0;
+
+	pr_err("%s_2 vm_reset_bitmap: 0x%x, ret val: %d\n", __func__, vm_reset_bitmap, pio_req->value);
+	return true;
+}
+
+static bool optee_ctl_io_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t addr, __unused size_t width, uint32_t v)
+{
+	optee_read_vm_id = v;
+
+	pr_err("%s_2 optee_read_vm_id: 0x%x\n", __func__, optee_read_vm_id);
+	return true;
+}
+
+static void optee_register_io_handler(struct acrn_vm *vm)
+{
+	struct vm_io_range optee_ctl_range = {
+		.base = 0x600U,
+		.len = 1U
+	};
+
+	register_pio_emulation_handler(vm, OPTEE_CTL_PIO_IDX, &optee_ctl_range,
+			optee_ctl_io_read, optee_ctl_io_write);
+}
+
 /**
  * @pre vm_id < CONFIG_MAX_VM_NUM && vm_config != NULL && rtn_vm != NULL
  * @pre vm->state == VM_POWERED_OFF
@@ -804,6 +838,9 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 			* in some cases, though the functionality of vIOAPIC doesn't work.
 			*/
 			vioapic_init(vm);
+
+			if (is_tee_vm(vm))
+				optee_register_io_handler(vm);
 
 			/* Populate return VM handle */
 			*rtn_vm = vm;
@@ -1039,6 +1076,8 @@ int32_t reset_vm(struct acrn_vm *vm, enum vm_reset_mode mode)
 	vm->sworld_control.flag.active = 0UL;
 	vm->arch_vm.iwkey_backup_status = 0UL;
 	vm->state = VM_CREATED;
+
+	bitmap_set_lock(vm->vm_id, &vm_reset_bitmap);
 
 	return ret;
 }
