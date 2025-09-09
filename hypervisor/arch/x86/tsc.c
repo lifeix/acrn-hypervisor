@@ -8,7 +8,7 @@
 #include <util.h>
 #include <asm/cpuid.h>
 #include <asm/cpu_caps.h>
-#include <asm/io.h>
+#include <io.h>
 #include <asm/tsc.h>
 #include <asm/cpu.h>
 #include <logmsg.h>

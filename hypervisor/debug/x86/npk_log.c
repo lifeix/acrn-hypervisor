@@ -7,7 +7,7 @@
 #include <atomic.h>
 #include <acrn_hv_defs.h>
 #include <mmu.h>
-#include <asm/io.h>
+#include <io.h>
 #include <per_cpu.h>
 #include <logmsg.h>
 #include <npk_log.h>

@@ -16,22 +16,22 @@
 static inline void pio_write8(__unused uint8_t value, __unused uint16_t port){}
 
 /* Read 1 byte from specified I/O port */
-static inline uint8_t pio_read8(__unused uint16_t port) { return 0xffU}
+static inline uint8_t pio_read8(__unused uint16_t port) { return 0xffU;}
 
 /* Write 2 bytes to specified I/O port */
 static inline void pio_write16(__unused uint16_t value, __unused uint16_t port) {}
 
 /* Read 2 bytes from specified I/O port */
-static inline uint16_t pio_read16(__unused uint16_t port) { return 0xffffU}
+static inline uint16_t pio_read16(__unused uint16_t port) { return 0xffffU;}
 
 /* Write 4 bytes to specified I/O port */
 static inline void pio_write32(__unused uint32_t value, __unused uint16_t port) {}
 
-static inline uint32_t pio_read32(__unused uint16_t port) { return 0xffffffffU}
+static inline uint32_t pio_read32(__unused uint16_t port) { return 0xffffffffU;}
 
 static inline void pio_write(__unused uint32_t v, __unused uint16_t addr, __unused size_t sz) {}
 
-static inline uint32_t pio_read(__unused uint16_t addr, __unused size_t sz) { return 0xffffffffU}
+static inline uint32_t pio_read(__unused uint16_t addr, __unused size_t sz) { return 0xffffffffU;}
 #endif /* __HAS_ARCH_PIO */
 
 #ifndef __HAS_ARCH_MMIO

@@ -9,7 +9,7 @@ GCC_MAJOR=$(shell echo __GNUC__ | $(CC) -E -x c - | tail -n 1)
 GCC_MINOR=$(shell echo __GNUC_MINOR__ | $(CC) -E -x c - | tail -n 1)
 
 #enable stack overflow check
-STACK_PROTECTOR := 1
+#STACK_PROTECTOR := 1
 
 BASEDIR := $(shell pwd)
 HV_OBJDIR ?= $(CURDIR)/build

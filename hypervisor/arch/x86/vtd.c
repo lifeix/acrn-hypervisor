@@ -14,7 +14,7 @@
 #include <irq.h>
 #include <mmu.h>
 #include <asm/irq.h>
-#include <asm/io.h>
+#include <io.h>
 #include <asm/lapic.h>
 #include <asm/vtd.h>
 #include <ticks.h>
