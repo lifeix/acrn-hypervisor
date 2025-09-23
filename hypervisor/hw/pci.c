@@ -32,9 +32,8 @@
  */
 #include <types.h>
 #include <spinlock.h>
+#include <mmu.h>
 #include <asm/io.h>
-#include <asm/pgtable.h>
-#include <asm/mmu.h>
 #include <pci.h>
 #include <uart16550.h>
 #include <logmsg.h>

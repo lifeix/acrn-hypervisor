@@ -6,9 +6,9 @@
 #include <types.h>
 #include <atomic.h>
 #include <acrn_hv_defs.h>
+#include <mmu.h>
 #include <asm/io.h>
 #include <per_cpu.h>
-#include <asm/mmu.h>
 #include <logmsg.h>
 #include <npk_log.h>
 #include <cpu.h>

@@ -46,6 +46,7 @@ HOST_C_SRCS += arch/riscv/notify.c
 HOST_C_SRCS += arch/riscv/timer.c
 HOST_C_SRCS += arch/riscv/trap.c
 HOST_C_SRCS += arch/riscv/cpu.c
+HOST_C_SRCS += arch/riscv/mmu.c
 HOST_C_SRCS += arch/riscv/logmsg.c
 
 # Virtual platform assembly sources
