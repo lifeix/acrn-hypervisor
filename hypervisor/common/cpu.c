@@ -112,3 +112,11 @@ bool start_pcpus(uint64_t mask)
 
 	return check_pcpus_active(mask);
 }
+
+void print_hv_banner(void)
+{
+	const char *boot_msg = "ACRN Hypervisor\n\r";
+
+	/* Print the boot message */
+	printf(boot_msg);
+}

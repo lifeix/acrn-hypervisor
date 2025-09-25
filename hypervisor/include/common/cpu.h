@@ -66,4 +66,6 @@ static inline void asm_pause(void)
 	arch_asm_pause();
 }
 
+void print_hv_banner(void);
+
 #endif /* COMMON_CPU_H */
