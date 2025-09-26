@@ -9,8 +9,8 @@
 #include <pci.h>
 #include <uart16550.h>
 #include <mmu.h>
-#include <asm/io.h>
-#include <asm/cpu.h>
+#include <io.h>
+#include <cpu.h>
 
 #define MAX_BDF_LEN 8
 
