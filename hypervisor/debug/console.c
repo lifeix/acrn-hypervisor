@@ -177,6 +177,10 @@ void console_setup_timer(void)
 	if (add_timer(&console_timer) != 0) {
 		pr_err("Failed to add console kick timer");
 	}
+
+	while (true) {
+		shell_kick();
+	}
 }
 
 /* When lapic-pt is enabled for a vcpu working on the pcpu hosting

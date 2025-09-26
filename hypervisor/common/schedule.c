@@ -9,7 +9,7 @@
 #include <bits.h>
 #include <asm/cpu.h>
 #include <per_cpu.h>
-#include <asm/lapic.h>
+//#include <asm/lapic.h>
 #include <schedule.h>
 #include <sprintf.h>
 #include <asm/irq.h>
@@ -155,7 +155,7 @@ void make_reschedule_request(uint16_t pcpu_id)
 
 	bitmap_set(NEED_RESCHEDULE, &ctl->flags);
 	if (get_pcpu_id() != pcpu_id) {
-		kick_pcpu(pcpu_id);
+		//kick_pcpu(pcpu_id);
 	}
 }
 

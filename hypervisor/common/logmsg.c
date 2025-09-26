@@ -46,7 +46,7 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 	uint64_t timestamp;
 	uint16_t pcpu_id;
 	char *buffer;
-	struct thread_object *current;
+	//struct thread_object *current;
 
 	if (!mem_need_log(severity) && !console_need_log(severity) && !npk_need_log(severity)) {
 		return;
@@ -61,12 +61,12 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 	/* Get CPU ID */
 	pcpu_id = get_pcpu_id();
 	buffer = per_cpu(logbuf, pcpu_id);
-	current = sched_get_current(pcpu_id);
+	//current = sched_get_current(pcpu_id);
 
 	(void)memset(buffer, 0U, LOG_MESSAGE_MAX_SIZE);
 	/* Put time-stamp, CPU ID and severity into buffer */
 	snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][sev=%u][seq=%u]:",
-			timestamp, pcpu_id, current->name, severity, atomic_inc_return(&log_seq));
+			timestamp, pcpu_id, /*current->name*/ "FIXME", severity, atomic_inc_return(&log_seq));
 
 	/* Put message into remaining portion of local buffer */
 	va_start(args, fmt);

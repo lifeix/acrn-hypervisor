@@ -107,6 +107,8 @@ static void init_pcpu_comm_post(void)
 		print_hv_banner();
 	}
 
+	timer_init();
+
 	init_debug_post(pcpu_id);
  
 	while (1) {

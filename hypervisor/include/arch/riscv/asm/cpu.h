@@ -70,7 +70,7 @@ static inline void arch_asm_pause(void)
 	({                                                                                                             \
 		uint32_t val = 0U;                                                                                     \
 		asm volatile("csrrc %0, sstatus, 0\n" : "=r"(val) : "i"(SSTATUS_SIE) : "memory");                      \
-		*(uint32_t *)(x) = val;                                                                                \
+		*(uint64_t *)(x) = val;                                                                                \
 	})
 
 #define CPU_INT_ALL_DISABLE(x) local_irq_save(x)
